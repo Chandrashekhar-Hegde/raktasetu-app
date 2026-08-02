@@ -2,7 +2,9 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "cd backend && npm start"
+# startCommand is set per-service in Railway (app vs cron). Do not put the
+# API start here — config-as-code overrides dashboard and would break
+# raktasetu-retention / raktasetu-escalation cron services.
 healthcheckPath = "/api/health"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"

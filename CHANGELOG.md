@@ -13,6 +13,7 @@ All notable changes to RaktaSetu are documented in this file.
 - Hospital Console escalation chip and `needed_by` countdown (en + kn)
 - Migration `last_escalated_at` on `blood_requests`; status check allows `expired`
 - Ops: Railway cron service `raktasetu-escalation` with `/railway.escalation.toml` (mirrors retention; see operational-readiness)
+- Root `railway.toml` no longer sets `startCommand` (was forcing cron services to boot the API); app/cron start commands are per-service
 
 ### Changed
 
