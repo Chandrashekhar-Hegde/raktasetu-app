@@ -70,6 +70,8 @@ Production cron service `raktasetu-escalation`:
 - Advisory lock key `78254104` (distinct from retention)
 - Behavior: critical open requests with zero accepts escalate after 10 minutes (urgent: 30; scheduled: never); radius widens to max(current, 10) then max(current, 25); only newly in-range donors are notified; open requests past `needed_by` or 24h become `expired`
 - Service ID: `22a1ce72-fbca-4a16-b294-6298f4ce1613`
+- Verified live 2026-08-02: cron runs `npm --prefix backend run escalation` (not the API); sample log `escalation: examined=26 escalated=0 expired=26 donors_notified=0`
+- Root `railway.toml` must not set `startCommand` (config-as-code overrides dashboard and would boot the API on cron services)
 
 - Expired Google onboarding records: one day after expiry.
 - Expired/revoked refresh tokens: seven/thirty days.
