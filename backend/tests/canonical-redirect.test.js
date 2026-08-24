@@ -19,6 +19,7 @@ test('parseCanonicalOrigin normalizes and rejects invalid values', () => {
 
 test('API and health paths are exempt from canonical redirect', () => {
   assert.equal(isCanonicalRedirectExempt('/api/health'), true);
+  assert.equal(isCanonicalRedirectExempt('/api/health/ready'), true);
   assert.equal(isCanonicalRedirectExempt('/api/auth/login'), true);
   assert.equal(isCanonicalRedirectExempt('/health'), true);
   assert.equal(isCanonicalRedirectExempt('/socket.io/'), true);
@@ -83,6 +84,25 @@ test('API health stays 200 on railway host when CANONICAL_ORIGIN is set', async 
     .expect(200);
 
   assert.equal(response.body.data.status, 'healthy');
+  assert.equal(response.headers.location, undefined);
+});
+
+test('API readiness stays on railway host when CANONICAL_ORIGIN is set', async () => {
+  const app = createApp({
+    env: {
+      NODE_ENV: 'test',
+      SERVE_FRONTEND: 'false',
+      CANONICAL_ORIGIN: 'https://raktasetu.in',
+    },
+    pingDatabase: async () => {},
+  });
+
+  const response = await request(app)
+    .get('/api/health/ready')
+    .set('Host', 'raktasetu-production.up.railway.app')
+    .expect(200);
+
+  assert.equal(response.body.data.status, 'ready');
   assert.equal(response.headers.location, undefined);
 });
 

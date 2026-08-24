@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import { postgresSslConfig } from '../db/ssl.js';
+import { handleMaintenanceJobFailure } from '../db/computeQuota.js';
 import { anonymizeExpiredDeletions } from '../services/accountDeletionService.js';
 
 const connectionString = process.env.RETENTION_DATABASE_URL ||
@@ -12,8 +13,8 @@ const client = new Client({
   connectionString,
   ssl: postgresSslConfig(connectionString),
 });
-await client.connect();
 try {
+  await client.connect();
   const lock = await client.query('SELECT pg_try_advisory_lock(78254103) AS acquired');
   if (!lock.rows[0].acquired) {
     console.log('retention job already running');
@@ -86,6 +87,8 @@ try {
 
     await client.query('SELECT pg_advisory_unlock(78254103)');
   }
+} catch (err) {
+  handleMaintenanceJobFailure(err);
 } finally {
-  await client.end();
+  await client.end().catch(() => {});
 }

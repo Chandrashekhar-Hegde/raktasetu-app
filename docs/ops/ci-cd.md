@@ -54,8 +54,24 @@ cd frontend && npx playwright install --with-deps chromium webkit && npm run tes
 ## Health
 
 ```bash
+# Liveness (no database). Railway healthcheck. Stays 200 if Neon is down.
 curl -sf https://raktasetu-production.up.railway.app/api/health
+
+# Readiness (SELECT 1). 200 when Postgres accepts connections; 503 otherwise.
+# error.code is COMPUTE_QUOTA_EXCEEDED after a Neon Free CU-hour cap, or DATABASE_UNAVAILABLE.
+curl -sf https://raktasetu-production.up.railway.app/api/health/ready
 ```
+
+Do **not** point Railway `healthcheckPath` at `/api/health/ready`. A Neon outage would restart the web service and take the SPA down with it.
+
+### Neon compute quota (2026-08)
+
+The 5-minute escalation cron keeps Neon compute awake. Free plan is **100 CU-hours/project/month**; always-on 0.25 CU is ~180 CU-hours. Production Postgres `raktasetu-ap-southeast-1` therefore requires **Launch** (pay-per-use). After a 402 / Postgres `53000` quota error:
+
+1. Upgrade the Neon org to Launch: https://console.neon.tech (Billing).
+2. Optionally pause Railway cron `raktasetu-escalation` (service `22a1ce72-fbca-4a16-b294-6298f4ce1613`) until `GET /api/health/ready` is 200, so scheduled runs stop rebuilding on failure.
+3. Confirm `POST /api/auth/login` is no longer 500, then re-enable the cron if paused.
+
 
 ## Branch protection (recommended)
 

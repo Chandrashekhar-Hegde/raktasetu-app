@@ -4,6 +4,10 @@ All notable changes to RaktaSetu are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `GET /api/health/ready` pings Postgres (`SELECT 1`) and returns 503 when the database is unreachable or Neon compute quota is exhausted. Railway liveness remains `GET /api/health` (no DB) so the SPA is not restarted during a quota outage.
+
 ## [2.0.13] — 2026-07-21
 
 ### Added

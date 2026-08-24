@@ -14,6 +14,7 @@ import pushRoutes from './routes/push.js';
 import { applyPrivacyHeaders, buildHelmetOptions } from './security.js';
 import { apiRateLimitKey } from './middleware/rateLimitKey.js';
 import { createCanonicalRedirectMiddleware } from './middleware/canonicalRedirect.js';
+import { classifyDatabaseReadinessError } from './db/computeQuota.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ORIGINS = ['http://localhost:5173', 'http://localhost:3001'];
@@ -36,6 +37,11 @@ export function buildAllowedOrigins(env = process.env) {
   return [...new Set([...configured, ...railwayOrigins])];
 }
 
+async function defaultPingDatabase() {
+  const { pingDatabaseReady } = await import('./db/readiness.js');
+  return pingDatabaseReady();
+}
+
 function setStaticAssetCacheHeaders(res, filePath) {
   const base = path.basename(filePath);
   if (base === 'index.html') {
@@ -48,7 +54,7 @@ function setStaticAssetCacheHeaders(res, filePath) {
   }
 }
 
-export function createApp({ env = process.env } = {}) {
+export function createApp({ env = process.env, pingDatabase = defaultPingDatabase } = {}) {
   const app = express();
   const isProduction = env.NODE_ENV === 'production' || Boolean(env.RAILWAY_ENVIRONMENT);
   const allowedOrigins = buildAllowedOrigins(env);
@@ -96,6 +102,30 @@ export function createApp({ env = process.env } = {}) {
         timestamp: new Date().toISOString(),
       },
     });
+  });
+  app.get('/api/health/ready', async (req, res) => {
+    try {
+      await pingDatabase();
+      return res.json({
+        success: true,
+        data: {
+          status: 'ready',
+          version: APP_VERSION,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (err) {
+      const code = classifyDatabaseReadinessError(err);
+      return res.status(503).json({
+        success: false,
+        error: {
+          code,
+          message: code === 'COMPUTE_QUOTA_EXCEEDED'
+            ? 'Database compute quota exceeded'
+            : 'Database unavailable',
+        },
+      });
+    }
   });
   app.get('/health', (req, res) => {
     res.json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
