@@ -14,6 +14,7 @@ import { createOneTimeToken, decideGoogleFlow, hashOneTimeToken, verifyGoogleIde
 import { logAudit } from '../utils/compliance.js';
 import { buildAccountExport } from '../utils/dataExport.js';
 import { disconnectUser } from '../realtime/publisher.js';
+import { mapDatabaseHttpError } from '../db/computeQuota.js';
 import {
   consentSchema,
   deleteAccountSchema,
@@ -35,6 +36,15 @@ const router = express.Router();
 
 function failure(res, status, code, message) {
   return res.status(status).json({ success: false, error: { code, message } });
+}
+
+function failureFromCaught(res, error, fallbackStatus, fallbackCode, fallbackMessage) {
+  const mapped = mapDatabaseHttpError(error);
+  if (mapped) return failure(res, mapped.status, mapped.code, mapped.message);
+  if (error?.status && error?.code && typeof error.code === 'string' && /[A-Z_]/.test(error.code)) {
+    return failure(res, error.status, error.code, error.message);
+  }
+  return failure(res, fallbackStatus, fallbackCode, fallbackMessage);
 }
 
 function publicUser(user) {
@@ -128,7 +138,7 @@ router.post('/register', validate(registrationSchema), async (req, res) => {
     return sessionResponse(res, req, 201, result.user, result.session);
   } catch (error) {
     console.error('Registration failed:', error.message);
-    return failure(res, 500, 'REGISTRATION_FAILED', 'Registration failed');
+    return failureFromCaught(res, error, 500, 'REGISTRATION_FAILED', 'Registration failed');
   }
 });
 
@@ -198,7 +208,7 @@ router.post('/login', validate(loginSchema), async (req, res) => {
     return sessionResponse(res, req, 200, result.user, result.session);
   } catch (error) {
     console.error('Login failed:', error.message);
-    return failure(res, 500, 'LOGIN_FAILED', 'Login failed');
+    return failureFromCaught(res, error, 500, 'LOGIN_FAILED', 'Login failed');
   }
 });
 
@@ -301,7 +311,7 @@ router.post('/google', validate(googleTokenSchema), async (req, res) => {
     }
     return res.json({ success: true, data: result });
   } catch (error) {
-    return failure(res, error.status || 401, error.code || 'GOOGLE_SIGN_IN_FAILED', error.message || 'Google Sign-In failed');
+    return failureFromCaught(res, error, 401, 'GOOGLE_SIGN_IN_FAILED', 'Google Sign-In failed');
   }
 });
 
@@ -354,7 +364,7 @@ router.post('/google/onboarding', validate(googleOnboardingSchema), async (req, 
     return sessionResponse(res, req, 201, result.user, result.session);
   } catch (error) {
     console.error('Google onboarding failed:', error.message);
-    return failure(res, 500, 'GOOGLE_ONBOARDING_FAILED', 'Google onboarding failed');
+    return failureFromCaught(res, error, 500, 'GOOGLE_ONBOARDING_FAILED', 'Google onboarding failed');
   }
 });
 
@@ -394,7 +404,7 @@ router.post('/google/link', authenticate, validate(googleLinkSchema), async (req
     if (result.conflict) return failure(res, 409, 'GOOGLE_IDENTITY_ALREADY_LINKED', 'Google identity is already linked');
     return res.json({ success: true, data: { linked: true } });
   } catch (error) {
-    return failure(res, error.status || 500, error.code || 'GOOGLE_LINK_FAILED', error.message || 'Google linking failed');
+    return failureFromCaught(res, error, 500, 'GOOGLE_LINK_FAILED', 'Google linking failed');
   }
 });
 
@@ -449,7 +459,7 @@ router.post('/refresh', async (req, res) => {
     return res.json({ success: true, data: delivered });
   } catch (error) {
     console.error('Token refresh failed:', error.message);
-    return failure(res, 500, 'TOKEN_REFRESH_FAILED', 'Token refresh failed');
+    return failureFromCaught(res, error, 500, 'TOKEN_REFRESH_FAILED', 'Token refresh failed');
   }
 });
 
@@ -486,7 +496,7 @@ router.post('/logout', authenticate, async (req, res) => {
     return res.json({ success: true, data: { message: 'Logged out' } });
   } catch (error) {
     console.error('Logout failed:', error.message);
-    return failure(res, 503, 'LOGOUT_REVOCATION_FAILED', 'Could not revoke this session');
+    return failureFromCaught(res, error, 503, 'LOGOUT_REVOCATION_FAILED', 'Could not revoke this session');
   }
 });
 
@@ -602,7 +612,7 @@ async function deleteAccountHandler(req, res) {
       return failure(res, error.status, error.code, error.message);
     }
     console.error('Account deletion failed:', error.message);
-    return failure(res, 500, 'ACCOUNT_DELETION_FAILED', 'Account deletion failed');
+    return failureFromCaught(res, error, 500, 'ACCOUNT_DELETION_FAILED', 'Account deletion failed');
   }
 }
 
@@ -620,7 +630,7 @@ router.post('/restore-account', validate(restoreAccountSchema), async (req, res)
       return failure(res, error.status, error.code, error.message);
     }
     console.error('Account restore failed:', error.message);
-    return failure(res, 500, 'ACCOUNT_RESTORE_FAILED', 'Account restore failed');
+    return failureFromCaught(res, error, 500, 'ACCOUNT_RESTORE_FAILED', 'Account restore failed');
   }
 });
 
@@ -630,7 +640,7 @@ router.get('/policy-version', (req, res) => {
 
 router.use((error, req, res, next) => {
   if (res.headersSent) return next(error);
-  return failure(res, error.status || 500, error.code || 'AUTH_ERROR', error.message || 'Authentication operation failed');
+  return failureFromCaught(res, error, 500, 'AUTH_ERROR', 'Authentication operation failed');
 });
 
 export default router;

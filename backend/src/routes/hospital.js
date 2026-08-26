@@ -1,5 +1,6 @@
 import express from 'express';
 import { query } from '../db.js';
+import { respondIfDatabaseDown } from '../db/computeQuota.js';
 import { authenticate, requireActiveAccount, requireApprovedHospital, requireRole } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
@@ -123,6 +124,7 @@ router.get('/dashboard', async (req, res) => {
       }
     });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Hospital dashboard error:', err);
     return res.status(500).json({ success: false, error: 'Failed to load dashboard' });
   }
@@ -239,6 +241,7 @@ router.post('/requests', validate(requestCreateSchema), async (req, res) => {
       data: { request, donors_notified: nearbyDonors.length },
     });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Create request error:', err);
     return res.status(500).json({ success: false, error: 'Failed to create request' });
   }
@@ -294,6 +297,7 @@ router.get('/requests', validate(hospitalRequestQuerySchema, 'query'), async (re
     );
     return res.json({ success: true, data: { requests: requestsResult.rows } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Search request error:', err);
     return res.status(500).json({ success: false, error: 'Failed to search requests' });
   }
@@ -337,6 +341,7 @@ router.get('/requests/:id', validate(requestIdParamsSchema, 'params'), async (re
       data: { request, responses: responsesResult.rows }
     });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Request detail error:', err);
     return res.status(500).json({ success: false, error: 'Failed to fetch request detail' });
   }
@@ -378,6 +383,7 @@ router.patch('/requests/:id', validate(requestIdParamsSchema, 'params'), validat
 
     return res.json({ success: true, data: { request: result.rows[0] } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Update request error:', err);
     return res.status(500).json({ success: false, error: 'Failed to update request' });
   }
@@ -398,6 +404,7 @@ router.post('/verify-donation', validate(donationCompletionSchema), async (req, 
     });
     return res.json({ success: true, data: { donation } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Verify donation error:', err);
     return res.status(err.status || 500).json({
       success: false,
@@ -419,6 +426,7 @@ router.post('/verify-redemption', validate(verifyRedemptionSchema), async (req, 
     });
     return res.json({ success: true, data: { redemption } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Verify redemption error:', err);
     return res.status(err.status || 500).json({
       success: false,
@@ -470,6 +478,7 @@ router.get('/donors', validate(donorSearchQuerySchema, 'query'), async (req, res
 
     return res.json({ success: true, data: { donors } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Nearby donors error:', err);
     return res.status(500).json({ success: false, error: 'Failed to fetch nearby donors' });
   }
@@ -508,6 +517,7 @@ router.get('/metrics/summary', validate(metricsRangeSchema, 'query'), async (req
     });
     return res.json({ success: true, data });
   } catch (error) {
+    if (respondIfDatabaseDown(res, error)) return;
     const status = error.status || 500;
     return res.status(status).json({
       success: false,

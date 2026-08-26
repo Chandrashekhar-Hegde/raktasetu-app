@@ -84,6 +84,8 @@ export default function Login() {
               if (code === 'ACCOUNT_RESTORABLE') {
                 setRestorable(true);
                 setError(t('login.restorable'));
+              } else if (code === 'COMPUTE_QUOTA_EXCEEDED' || code === 'DATABASE_UNAVAILABLE') {
+                setError(t('login.unavailable'));
               } else {
                 setError(_err.response?.data?.error?.message || _err.message || 'Google Sign-In failed');
               }
@@ -138,6 +140,10 @@ export default function Login() {
       if (code === 'ACCOUNT_GONE') {
         setRestorable(false);
         setError(t('login.accountGone'));
+        return;
+      }
+      if (code === 'COMPUTE_QUOTA_EXCEEDED' || code === 'DATABASE_UNAVAILABLE') {
+        setError(t('login.unavailable'));
         return;
       }
       setError(_err.response?.data?.error?.message || _err.response?.data?.error || t('login.failed'));

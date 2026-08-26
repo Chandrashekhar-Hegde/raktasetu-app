@@ -1,5 +1,6 @@
 import express from 'express';
 import { query } from '../db.js';
+import { respondIfDatabaseDown } from '../db/computeQuota.js';
 import { authenticate, requireActiveAccount, requireRole } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import { logAudit } from '../utils/compliance.js';
@@ -126,6 +127,7 @@ router.get('/dashboard', async (req, res) => {
       }
     });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Donor dashboard error:', err);
     return res.status(500).json({ success: false, error: 'Failed to load dashboard' });
   }
@@ -180,6 +182,7 @@ router.patch('/on-call', validate(onCallSchema), async (req, res) => {
 
     return res.json({ success: true, data: { is_on_call: result.rows[0].is_on_call } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('On-call toggle error:', err);
     return res.status(500).json({ success: false, error: 'Failed to update availability' });
   }
@@ -229,6 +232,7 @@ router.get('/requests', validate(paginationSchema, 'query'), async (req, res) =>
 
     return res.json({ success: true, data: { requests } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Donor requests error:', err);
     return res.status(500).json({ success: false, error: 'Failed to fetch requests' });
   }
@@ -325,6 +329,7 @@ router.post('/respond/:requestId', validate(donorRequestParamsSchema, 'params'),
 
     return res.json({ success: true, data: { response } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Respond error:', err);
     return res.status(500).json({ success: false, error: 'Failed to respond to request' });
   }
@@ -379,6 +384,7 @@ router.post('/arrived/:requestId', validate(donorRequestParamsSchema, 'params'),
 
     return res.json({ success: true, data: { response: result.rows[0] } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Arrived error:', err);
     return res.status(500).json({ success: false, error: 'Failed to mark arrival' });
   }
@@ -414,6 +420,7 @@ router.get('/credits', validate(paginationSchema, 'query'), async (req, res) => 
       data: { balance, history: historyResult.rows }
     });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Credits error:', err);
     return res.status(500).json({ success: false, error: 'Failed to fetch credits' });
   }
@@ -432,6 +439,7 @@ router.get('/family', async (req, res) => {
     );
     return res.json({ success: true, data: { members: result.rows } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Family list error:', err);
     return res.status(500).json({ success: false, error: 'Failed to fetch family members' });
   }
@@ -480,6 +488,7 @@ router.post('/family', validate(familyMemberSchema), async (req, res) => {
 
     return res.status(201).json({ success: true, data: { member } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     if (err.status === 409 || err.code === '23514' || String(err.message || '').includes('Maximum of 4')) {
       return res.status(409).json({
         success: false,
@@ -513,6 +522,7 @@ router.delete('/family/:id', validate(familyMemberIdParamsSchema, 'params'), asy
     });
     return res.json({ success: true, data: { id: req.params.id } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Family delete error:', err);
     return res.status(500).json({ success: false, error: 'Failed to remove family member' });
   }
@@ -536,6 +546,7 @@ router.get('/redemptions', validate(paginationSchema, 'query'), async (req, res)
     );
     return res.json({ success: true, data: { redemptions: result.rows } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Redemptions list error:', err);
     return res.status(500).json({ success: false, error: 'Failed to fetch redemptions' });
   }
@@ -566,6 +577,7 @@ router.post('/redemptions', validate(redemptionCreateSchema), async (req, res) =
       },
     });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Redemption create error:', err);
     return res.status(err.status || 500).json({
       success: false,
@@ -589,6 +601,7 @@ router.post('/redemptions/:id/cancel', validate(redemptionIdParamsSchema, 'param
     });
     return res.json({ success: true, data: result });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Redemption cancel error:', err);
     return res.status(err.status || 500).json({
       success: false,
@@ -620,6 +633,7 @@ router.get('/history', validate(paginationSchema, 'query'), async (req, res) => 
 
     return res.json({ success: true, data: { donations: result.rows } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('History error:', err);
     return res.status(500).json({ success: false, error: 'Failed to fetch donation history' });
   }
@@ -672,6 +686,7 @@ router.patch('/profile', validate(donorProfileSchema), async (req, res) => {
 
     return res.json({ success: true, data: { user: result.rows[0] } });
   } catch (err) {
+    if (respondIfDatabaseDown(res, err)) return;
     console.error('Profile update error:', err);
     return res.status(500).json({ success: false, error: 'Failed to update profile' });
   }

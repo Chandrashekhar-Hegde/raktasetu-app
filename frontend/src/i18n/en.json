@@ -123,6 +123,7 @@
   "login.donorLogin": "Donor sign in",
   "login.missingFields": "Please enter phone/email and password",
   "login.failed": "Login failed. Please try again.",
+  "login.unavailable": "Sign-in is temporarily unavailable. Please try again shortly.",
   "login.restorable": "This account is scheduled for deletion. Confirm your password below to restore it within 30 days.",
   "login.accountGone": "This account has been permanently deleted and cannot be restored.",
   "login.deletedNotice": "Your account is deactivated. You can restore it within 30 days by signing in and choosing Restore.",

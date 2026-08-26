@@ -3,13 +3,15 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import GoogleOnboarding from '../screens/GoogleOnboarding.jsx';
 import HospitalPending from '../screens/HospitalPending.jsx';
+import Login from '../screens/Login.jsx';
 import Register from '../screens/Register.jsx';
 import { T } from '../theme.js';
 
 const completeGoogleOnboarding = vi.fn();
 const register = vi.fn();
+const login = vi.fn();
 vi.mock('../hooks/useAuth.js', () => ({
-  useAuth: () => ({ completeGoogleOnboarding, register }),
+  useAuth: () => ({ completeGoogleOnboarding, register, login, loginWithGoogle: vi.fn(), restoreAccount: vi.fn() }),
 }));
 
 afterEach(() => {
@@ -17,6 +19,7 @@ afterEach(() => {
   sessionStorage.clear();
   completeGoogleOnboarding.mockReset();
   register.mockReset();
+  login.mockReset();
 });
 
 describe('identity state screens', () => {
@@ -48,5 +51,21 @@ describe('identity state screens', () => {
     expect(nameInput).toHaveStyle({ color: T.ink, background: T.card });
     expect(nameInput.style.color.toLowerCase()).not.toBe('#fff');
     expect(nameInput.style.color.toLowerCase()).not.toBe('rgb(255, 255, 255)');
+  });
+
+  it('shows a temporary-unavailable message when sign-in hits a database outage', async () => {
+    login.mockRejectedValue({
+      response: { data: { error: { code: 'COMPUTE_QUOTA_EXCEEDED', message: 'Database compute quota exceeded' } } },
+    });
+    render(
+      <MemoryRouter initialEntries={['/login?role=hospital']}>
+        <Login />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText(/phone or email/i), { target: { value: '9999999999' } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'secret' } });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/temporarily unavailable/i);
+    expect(login).toHaveBeenCalled();
   });
 });
