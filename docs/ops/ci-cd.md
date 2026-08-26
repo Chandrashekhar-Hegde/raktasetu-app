@@ -68,9 +68,9 @@ Do **not** point Railway `healthcheckPath` at `/api/health/ready`. A Neon outage
 
 The 5-minute escalation cron keeps Neon compute awake. Free plan is **100 CU-hours/project/month**; always-on 0.25 CU is ~180 CU-hours. Production Postgres `raktasetu-ap-southeast-1` therefore requires **Launch** (pay-per-use). After a 402 / Postgres `53000` quota error:
 
-1. Upgrade the Neon org to Launch: https://console.neon.tech (Billing).
-2. Optionally pause Railway cron `raktasetu-escalation` (service `22a1ce72-fbca-4a16-b294-6298f4ce1613`) until `GET /api/health/ready` is 200, so scheduled runs stop rebuilding on failure.
-3. Confirm `POST /api/auth/login` is no longer 500, then re-enable the cron if paused.
+1. Upgrade the Neon org to Launch: https://console.neon.tech (Billing). Quota otherwise resets at month start.
+2. App/cron deploys after this change **do not crash-loop**: maintenance jobs log the quota error and exit 0; login returns 503 instead of 500. Optionally still pause Railway cron `raktasetu-escalation` (`22a1ce72-fbca-4a16-b294-6298f4ce1613`) to skip empty ticks.
+3. Confirm `GET /api/health/ready` is 200 and `POST /api/auth/login` is no longer 503 `COMPUTE_QUOTA_EXCEEDED`, then re-enable the cron if paused.
 
 
 ## Branch protection (recommended)

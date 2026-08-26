@@ -1,6 +1,7 @@
 import express from 'express';
 import { query } from '../db.js';
 import { withAuthorizationContext } from '../db/authorizedTransaction.js';
+import { respondIfDatabaseDown } from '../db/computeQuota.js';
 import { authenticate, requireActiveAccount, requireRole } from '../middleware/auth.js';
 import { disconnectUser } from '../realtime/publisher.js';
 import {
@@ -118,6 +119,7 @@ router.get('/metrics/summary', validate(metricsRangeSchema, 'query'), async (req
     });
     return res.json({ success: true, data });
   } catch (error) {
+    if (respondIfDatabaseDown(res, error)) return;
     const status = error.status || 500;
     return res.status(status).json({
       success: false,
@@ -135,6 +137,7 @@ router.get('/metrics/response-times', validate(metricsRangeSchema, 'query'), asy
     });
     return res.json({ success: true, data });
   } catch (error) {
+    if (respondIfDatabaseDown(res, error)) return;
     const status = error.status || 500;
     return res.status(status).json({
       success: false,
@@ -152,6 +155,7 @@ router.get('/metrics/rare', validate(metricsRangeSchema, 'query'), async (req, r
     });
     return res.json({ success: true, data });
   } catch (error) {
+    if (respondIfDatabaseDown(res, error)) return;
     const status = error.status || 500;
     return res.status(status).json({
       success: false,
@@ -172,6 +176,7 @@ router.get('/metrics/export.csv', validate(metricsRangeSchema, 'query'), async (
     res.setHeader('Content-Disposition', 'attachment; filename="raktasetu-pilot-metrics.csv"');
     return res.status(200).send(csv);
   } catch (error) {
+    if (respondIfDatabaseDown(res, error)) return;
     const status = error.status || 500;
     return res.status(status).json({
       success: false,
@@ -225,6 +230,7 @@ router.post('/hospitals/:id/approval', validate(hospitalApprovalSchema), async (
     disconnectUser(result.userId);
     return res.json({ success: true, data: { hospital_id: id, approval_status: req.body.status } });
   } catch (error) {
+    if (respondIfDatabaseDown(res, error)) return;
     console.error('Hospital approval failed:', error.message);
     return res.status(500).json({ success: false, error: { code: 'HOSPITAL_APPROVAL_FAILED', message: 'Hospital approval failed' } });
   }

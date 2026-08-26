@@ -66,7 +66,7 @@ Production cron service `raktasetu-escalation`:
 - Config-as-Code file: `/railway.escalation.toml` (must not use root `railway.toml` or the cron starts the API)
 - Start command: `npm --prefix backend run escalation`
 - Cron schedule: `*/5 * * * *` (every 5 minutes). This cadence keeps Neon compute from scaling to zero; **Neon Free (100 CU-hours) cannot sustain it** — use Launch or higher.
-- If Neon returns `53000` / HTTP 402 compute quota, pause this cron in the Railway dashboard (Settings → Cron schedule) until `GET /api/health/ready` is 200, then re-enable. The job logs `Neon compute quota exceeded` and exits 1.
+- If Neon returns `53000` / HTTP 402 compute quota, the job logs `Neon compute quota exceeded` and **exits 0** (Railway does not mark the tick CRASHED). Optionally pause this cron in the Railway dashboard until `GET /api/health/ready` is 200.
 - Variables on the cron service only: `ESCALATION_DATABASE_URL` (or reuse `RETENTION_DATABASE_URL` — Neon owner/maintenance), `NODE_ENV=production`; optional VAPID keys if push should fire from the cron
 - Advisory lock key `78254104` (distinct from retention)
 - Behavior: critical open requests with zero accepts escalate after 10 minutes (urgent: 30; scheduled: never); radius widens to max(current, 10) then max(current, 25); only newly in-range donors are notified; open requests past `needed_by` or 24h become `expired`

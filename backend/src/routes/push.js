@@ -2,6 +2,7 @@ import express from 'express';
 import webpush from 'web-push';
 import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db.js';
+import { respondIfDatabaseDown } from '../db/computeQuota.js';
 import { authenticate, requireActiveAccount } from '../middleware/auth.js';
 import { logAudit } from '../utils/compliance.js';
 import { pushSubscriptionSchema, pushTestSchema, validate } from '../validation/schemas.js';
@@ -78,6 +79,7 @@ router.post('/subscribe', validate(pushSubscriptionSchema), async (req, res) => 
     });
     return res.status(existing.rows[0] ? 200 : 201).json({ success: true, data: { id, subscribed: true } });
   } catch (error) {
+    if (respondIfDatabaseDown(res, error)) return;
     console.error('Push subscription failed:', error.message);
     return res.status(500).json({ success: false, error: { code: 'PUSH_SUBSCRIBE_FAILED', message: 'Failed to save subscription' } });
   }

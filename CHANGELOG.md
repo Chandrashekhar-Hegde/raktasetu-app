@@ -7,6 +7,12 @@ All notable changes to RaktaSetu are documented in this file.
 ### Added
 
 - `GET /api/health/ready` pings Postgres (`SELECT 1`) and returns 503 when the database is unreachable or Neon compute quota is exhausted. Railway liveness remains `GET /api/health` (no DB) so the SPA is not restarted during a quota outage.
+- Auth and other API routes map Postgres quota (`53000`) and connect failures to 503 `COMPUTE_QUOTA_EXCEEDED` / `DATABASE_UNAVAILABLE` instead of generic 500 `LOGIN_FAILED`.
+- Escalation and retention crons log quota/unavailable errors and **exit 0** so Railway cron ticks are not marked CRASHED while the database is gated.
+
+### Changed
+
+- Sign-in shows a temporary-unavailable message (en + kn) when the API reports a database outage.
 
 ## [2.0.13] — 2026-07-21
 

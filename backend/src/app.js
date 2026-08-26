@@ -14,7 +14,7 @@ import pushRoutes from './routes/push.js';
 import { applyPrivacyHeaders, buildHelmetOptions } from './security.js';
 import { apiRateLimitKey } from './middleware/rateLimitKey.js';
 import { createCanonicalRedirectMiddleware } from './middleware/canonicalRedirect.js';
-import { classifyDatabaseReadinessError } from './db/computeQuota.js';
+import { classifyDatabaseReadinessError, mapDatabaseHttpError } from './db/computeQuota.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ORIGINS = ['http://localhost:5173', 'http://localhost:3001'];
@@ -152,6 +152,13 @@ export function createApp({ env = process.env, pingDatabase = defaultPingDatabas
   });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
+    const mapped = mapDatabaseHttpError(error);
+    if (mapped) {
+      return res.status(mapped.status).json({
+        success: false,
+        error: { code: mapped.code, message: mapped.message },
+      });
+    }
     const status = error.type === 'entity.too.large' ? 413 : (error.status || 500);
     return res.status(status).json({
       success: false,

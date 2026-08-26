@@ -3,6 +3,7 @@ const { Pool } = pg;
 import dotenv from 'dotenv';
 import { AsyncLocalStorage } from 'async_hooks';
 import { postgresSslConfig } from './db/ssl.js';
+import { wrapDatabaseError } from './db/computeQuota.js';
 
 dotenv.config();
 
@@ -43,7 +44,12 @@ async function applyContext(client, context) {
 
 export async function query(text, params) {
   const context = authorizationStore.getStore();
-  const client = await pool.connect();
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (error) {
+    throw wrapDatabaseError(error);
+  }
   try {
     await ensureRlsRole(client);
     if (!context) {
@@ -61,7 +67,7 @@ export async function query(text, params) {
     if (context) {
       try { await client.query('ROLLBACK'); } catch { /* ignore */ }
     }
-    throw error;
+    throw wrapDatabaseError(error);
   } finally {
     client.release();
   }
