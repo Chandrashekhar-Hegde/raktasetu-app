@@ -99,6 +99,21 @@ test('handleMaintenanceJobFailure logs quota errors and exits 0 so cron is not C
   }
 });
 
+test('handleMaintenanceJobFailure treats pg socket loss (no code) as transient', () => {
+  const previous = process.exitCode;
+  const original = console.error;
+  console.error = () => {};
+  try {
+    process.exitCode = 1;
+    handleMaintenanceJobFailure(new Error('Connection terminated unexpectedly'));
+    assert.equal(process.exitCode, 0);
+    assert.equal(isTransientDatabaseError(new Error('Client has encountered a connection error and is not queryable')), true);
+  } finally {
+    console.error = original;
+    process.exitCode = previous;
+  }
+});
+
 test('handleMaintenanceJobFailure rethrows non-quota errors', () => {
   const err = new Error('password authentication failed');
   err.code = '28P01';

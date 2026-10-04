@@ -19,6 +19,9 @@ const client = new Client({
   connectionString,
   ssl: postgresSslConfig(connectionString),
 });
+// Neon can drop the socket mid-run; without a listener pg's 'error' event kills the process.
+// The in-flight query still rejects and lands in handleMaintenanceJobFailure.
+client.on('error', (err) => console.error('escalation: db connection lost:', err.message));
 try {
   await client.connect();
   const lock = await client.query('SELECT pg_try_advisory_lock($1) AS acquired', [ADVISORY_LOCK_KEY]);

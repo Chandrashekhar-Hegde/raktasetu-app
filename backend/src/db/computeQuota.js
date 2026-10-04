@@ -29,6 +29,8 @@ export function isTransientDatabaseError(err) {
   const code = String(err.code || '');
   if (TRANSIENT_NODE_CODES.has(code)) return true;
   if (code.startsWith('08')) return true;
+  // pg raises these with no code when the socket drops mid-session (e.g. Neon suspend).
+  if (/Connection terminated unexpectedly|not queryable/i.test(String(err.message || ''))) return true;
   if (code === '57P01' || code === '57P03' || code === '53300') return true;
   return false;
 }

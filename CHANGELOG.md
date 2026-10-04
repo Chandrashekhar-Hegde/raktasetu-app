@@ -14,6 +14,10 @@ All notable changes to RaktaSetu are documented in this file.
 
 - Sign-in shows a temporary-unavailable message (en + kn) when the API reports a database outage.
 
+### Fixed
+
+- Escalation and retention crons no longer crash on `Connection terminated unexpectedly` when Neon drops the socket mid-run: the pg client now has an `'error'` listener and socket-loss errors are treated as transient (logged, exit 0).
+
 ## [2.0.13] — 2026-07-21
 
 ### Added
