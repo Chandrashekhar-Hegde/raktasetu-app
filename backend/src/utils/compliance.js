@@ -2,8 +2,8 @@ import { query } from '../db.js';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
- * HIPAA / DPDP Audit Logger
- * Logs all access to Protected Health Information (PHI) and sensitive operations.
+ * Security audit logger for sensitive operations and health-related data access.
+ * This technical log is one control; it does not establish HIPAA or DPDP compliance.
  */
 const SENSITIVE_KEYS = /password|token|secret|authorization|cookie|email|phone|endpoint/i;
 

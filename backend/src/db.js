@@ -55,7 +55,7 @@ export async function query(text, params) {
     if (!context) {
       return await client.query(text, params);
     }
-    // TODO(p2): prefer BEGIN READ ONLY for pure GET-path queries once callers can
+    // TODO(#1, p2): prefer BEGIN READ ONLY for pure GET-path queries once callers can
     // opt in (e.g. query(text, params, { readOnly: true })). Keep READ WRITE here
     // because the same helper is used on mutation paths and RLS context setup.
     await client.query('BEGIN READ WRITE');

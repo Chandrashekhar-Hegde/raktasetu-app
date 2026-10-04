@@ -1,6 +1,6 @@
--- RaktaSetu Neon schema snapshot (2026-07-15)
--- Source: Neon project cool-firefly-17917748 / database neondb
--- Apply with: psql "$DATABASE_URL" -f backend/db/schema.sql
+-- RaktaSetu base schema snapshot (2026-07-15); not the complete current schema.
+-- Apply this base only to a new database, then run every file in backend/db/migrations.
+-- Prefer `npm --prefix backend run db:migrate`; never use a production runtime credential.
 -- Requires: CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; (or pgcrypto uuid_generate_v4)
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

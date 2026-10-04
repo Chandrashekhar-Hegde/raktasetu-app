@@ -1,5 +1,7 @@
 # RaktaSetu API Stress Test Report
 
+> **Status: Archived.** Historical test evidence; see [docs/repository-health.md](./docs/repository-health.md) and current CI for present repository health.
+
 **Test Date:** 2026-07-08  
 **Test Agent:** Stress-test-api specialist  
 **Backend URL:** `https://fonts-publish-studios-toolbar.trycloudflare.com/api` (also tested previous tunnel)  

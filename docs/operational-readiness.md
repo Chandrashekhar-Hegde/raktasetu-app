@@ -15,7 +15,7 @@
 - `MIGRATION_DATABASE_URL`: database owner; CI migration step and operator workstation only. **Never** set this on the Railway web/app service. Production boot refuses to start if it is present in the app process environment.
 - `DATABASE_URL`: Neon login role `raktasetu_app` (not `neondb_owner`). The API immediately `SET ROLE raktasetu_rls` (NOLOGIN, `rolbypassrls=false`) because Neon-managed login roles retain `BYPASSRLS`.
 - `DB_RUNTIME_ROLE`: defaults to `raktasetu_rls` when `NODE_ENV=production`.
-- Auth-scoped `query()` still opens `BEGIN READ WRITE` for RLS context; opt-in `READ ONLY` for pure GET paths is a follow-up (see TODO in `backend/src/db.js`).
+- Auth-scoped `query()` still opens `BEGIN READ WRITE` for RLS context; opt-in `READ ONLY` for pure GET paths is tracked in [issue #1](https://github.com/Chandrashekhar-Hegde/raktasetu-app/issues/1) and the linked TODO in `backend/src/db.js`.
 - `RETENTION_DATABASE_URL`: owner or dedicated maintenance role used only by the scheduled retention service (not the web service).
 - Migrations are checksum-tracked in `schema_migrations`. Never edit an applied migration.
 - Take a provider backup or restore point before production schema changes. Test restoration in a non-production branch before relying on it.

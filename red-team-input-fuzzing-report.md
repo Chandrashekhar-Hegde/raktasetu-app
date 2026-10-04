@@ -1,5 +1,7 @@
 # Red-Team Input Fuzzing Report — RaktaSetu Blood Donation Platform
 
+> **Status: Archived.** Historical security test evidence; see [docs/security/security-controls.md](./docs/security/security-controls.md) and [docs/repository-health.md](./docs/repository-health.md) for current guidance.
+
 **Date:** 2026-07-08  
 **Tester:** Specialist Testing Agent  
 **Backend:** `https://fonts-publish-studios-toolbar.trycloudflare.com/api` (Cloudflare Tunnel) + `http://localhost:3001/api` (Local)  

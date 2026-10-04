@@ -1,0 +1,44 @@
+name: Documentation
+description: Report stale, missing, unclear, or contradictory documentation
+title: "docs: "
+labels: ["documentation"]
+body:
+  - type: dropdown
+    id: doc-status
+    attributes:
+      label: Document status
+      description: Use the status definitions in docs/repository-health.md.
+      options:
+        - Active
+        - Reference
+        - Archived
+        - Missing / new document
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: File path, heading, route, or public URL
+      placeholder: docs/operational-readiness.md#release-gates
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing?
+      description: Describe the conflict and the source that proves the current behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-change
+    attributes:
+      label: Proposed documentation change
+      description: Include the intended status tag and any issue or changelog links.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets, personal data, production database URLs, and unredacted logs.
+          required: true

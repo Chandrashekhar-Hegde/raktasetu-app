@@ -23,6 +23,15 @@ For UI/route changes, also run Playwright from `frontend/` (`npx playwright inst
 4. Do not put `MIGRATION_DATABASE_URL` on the Railway **app** service (boot refuses).
 5. Update `CHANGELOG.md` for user-visible or ops-visible changes.
 
+## Documentation and issue hygiene
+
+- Documentation-only pull requests must not change runtime behavior, dependencies, generated assets, schemas, or deployment configuration.
+- Tag each maintained document as active, reference, or archived in [docs/repository-health.md](./docs/repository-health.md).
+- Link actionable `TODO`/`FIXME` comments to an open issue; remove the comment when the issue lands.
+- Use the `documentation` label and documentation issue template for stale, missing, or contradictory docs.
+- Do not include secrets, personal data, production database URLs, or unredacted logs in docs or issues.
+- Follow [docs/release-and-tagging.md](./docs/release-and-tagging.md) for release tags. Do not guess historical tag boundaries.
+
 ## Secrets
 
 | Where | What |

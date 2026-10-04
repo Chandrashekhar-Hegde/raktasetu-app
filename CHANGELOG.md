@@ -18,6 +18,13 @@ All notable changes to RaktaSetu are documented in this file.
 
 - Escalation and retention crons no longer crash on `Connection terminated unexpectedly` when Neon drops the socket mid-run: the pg client now has an `'error'` listener and socket-loss errors are treated as transient (logged, exit 0).
 
+### Documentation
+
+- Added a dated repository-health snapshot, active/reference/archive document tags, and a release-tagging policy.
+- Added a documentation issue template and linked the database read-only transaction TODO to GitHub issue #1.
+- Clarified that the base schema snapshot requires all later migrations and that security audit logging is a technical control, not a compliance claim.
+- Recorded the live Railway health/version check, pending parked-domain state, and published `v2.0.13` tag.
+
 ## [2.0.13] — 2026-07-21
 
 ### Added
@@ -142,7 +149,7 @@ All notable changes to RaktaSetu are documented in this file.
 
 ### Notes
 
-- `BEGIN READ ONLY` for GET-path DB queries deferred; TODO left on `query()` in `db.js`
+- `BEGIN READ ONLY` for GET-path DB queries deferred; tracked in [issue #1](https://github.com/Chandrashekhar-Hegde/raktasetu-app/issues/1) and the TODO on `query()` in `db.js`
 
 ## [2.0.5] — 2026-07-18
 

@@ -1,5 +1,9 @@
 # Domain cutover: `raktasetu.in` → Railway
 
+> **Status:** Active, cutover pending
+>
+> **Last externally verified:** 2026-08-11 — `https://raktasetu.in/` served a registrar parking lander; the Railway production health endpoint returned HTTP 200 with version `2.0.13`.
+
 Prepare the codebase first (this checklist). **Do not** change DNS or set `CANONICAL_ORIGIN` on Railway until you are ready to cut over.
 
 Live today: `https://raktasetu-production.up.railway.app/`  

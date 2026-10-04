@@ -1,4 +1,7 @@
 # RaktaSetu — Blood Donation Platform
+
+> **Status: Archived.** Historical brand/product input; current behavior and operational truth live in [README.md](./README.md) and [docs/README.md](./docs/README.md).
+
 ## Complete Working Application Plan
 
 ### Brand Identity

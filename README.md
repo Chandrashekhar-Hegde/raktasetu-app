@@ -21,6 +21,10 @@ Donor sign-in: `/login` · Hospital sign-in (discreet): `/login?role=hospital`.
 
 Canonical GitHub remote: `https://github.com/Chandrashekhar-Hegde/raktasetu-app.git`
 
+## Repository status
+
+Current application release: **2.0.13**. The repository health snapshot, branch-divergence check, CI evidence, documentation status tags, and tracked debt live in [docs/repository-health.md](./docs/repository-health.md). Release tags follow [docs/release-and-tagging.md](./docs/release-and-tagging.md).
+
 ## Contacts
 
 | Role | Contact |
@@ -114,6 +118,8 @@ See the runbook in [docs/operational-readiness.md](./docs/operational-readiness.
 | [docs/README.md](./docs/README.md) | Documentation index |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | PR / secrets / checks |
 | [docs/ops/ci-cd.md](./docs/ops/ci-cd.md) | CI/CD and branch protection |
+| [docs/repository-health.md](./docs/repository-health.md) | Branch, CI, docs, and issue health snapshot |
+| [docs/release-and-tagging.md](./docs/release-and-tagging.md) | Release version and Git tag policy |
 | [docs/operational-readiness.md](./docs/operational-readiness.md) | Release gates, invites, retention |
 | [docs/security/security-controls.md](./docs/security/security-controls.md) | Security controls |
 | [CHANGELOG.md](./CHANGELOG.md) | Release history |
