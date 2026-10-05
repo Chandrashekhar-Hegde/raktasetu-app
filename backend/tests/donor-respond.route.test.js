@@ -26,6 +26,11 @@ test('donor responses follow the state machine and blood compatibility', { skip:
     await arrived(donor).expect(200);
     assert.equal((await respond(donor, 'declined').expect(409)).body.error.code, 'RESPONSE_FINAL', 'arrived is final');
 
+    const detail = await request(app).get(`/api/donor/responses/${requestId}`).set(donor).expect(200);
+    assert.equal(detail.body.data.request.response_status, 'arrived');
+    assert.ok(detail.body.data.request.hospital_address, 'address for the On-the-way screen');
+    await request(app).get(`/api/donor/responses/${requestId}`).set(incompatible).expect(404);
+
     const rows = await owner.query('SELECT status FROM donor_responses WHERE request_id = $1', [requestId]);
     assert.deepEqual(rows.rows.map((r) => r.status), ['arrived']);
   } finally {

@@ -1,9 +1,11 @@
 import jwt from 'jsonwebtoken';
+import { JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER } from '../auth/session.js';
 
 /**
  * Rate-limit key for API traffic under shared NATs (CGNAT / mobile carriers).
- * Prefer authenticated user id from the Bearer access token `sub` claim;
- * fall back to client IP for anonymous requests.
+ * Prefer the user id from a *verified* Bearer access token (an unverified
+ * `sub` lets anyone mint a fresh bucket per request); fall back to client IP.
+ * Expiry is ignored: an expired-but-genuine token still identifies the user.
  *
  * Auth-route limiters stay separate and tighter (see createApp); they still
  * key by IP so credential-stuffing against one mailbox is not amortized across users.
@@ -12,12 +14,14 @@ export function apiRateLimitKey(req) {
   const auth = req.headers?.authorization;
   if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
     try {
-      const decoded = jwt.decode(auth.slice(7));
+      const decoded = jwt.verify(auth.slice(7), process.env.JWT_SECRET, {
+        algorithms: [JWT_ALGORITHM], issuer: JWT_ISSUER, audience: JWT_AUDIENCE, ignoreExpiration: true,
+      });
       if (decoded && typeof decoded.sub === 'string' && decoded.sub.length > 0) {
         return `user:${decoded.sub}`;
       }
     } catch {
-      /* ignore malformed tokens; use IP */
+      /* forged or malformed: use IP */
     }
   }
   return req.ip || req.socket?.remoteAddress || 'anonymous';

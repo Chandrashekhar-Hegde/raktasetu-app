@@ -82,12 +82,17 @@ export function createApp({ env = process.env, pingDatabase = defaultPingDatabas
     keyGenerator: apiRateLimitKey,
     skip: (req) => !req.path.startsWith('/api'),
   }));
-  app.use('/api/auth/', rateLimit({
+  // Strict per-IP budget only where credentials are guessed. /me and /refresh stay on the global
+  // limiter: many Indian mobile users share one carrier IP and refresh on every app open.
+  const credentialLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 30,
     standardHeaders: true,
     legacyHeaders: false,
-  }));
+  });
+  for (const path of ['/api/auth/login', '/api/auth/register', '/api/auth/google', '/api/auth/restore-account', '/api/auth/delete-account', '/api/auth/password']) {
+    app.use(path, credentialLimiter);
+  }
 
   app.use('/api/auth', authRoutes);
   app.use('/api/donor', donorRoutes);
@@ -105,9 +110,17 @@ export function createApp({ env = process.env, pingDatabase = defaultPingDatabas
       },
     });
   });
+  // Unauthenticated and DB-backed: share one ping per 30s so callers can't burn Neon compute.
+  let readyPing = null;
+  let readyPingAt = 0;
   app.get('/api/health/ready', async (req, res) => {
     try {
-      await pingDatabase();
+      if (!readyPing || Date.now() - readyPingAt > 30_000) {
+        readyPingAt = Date.now();
+        readyPing = pingDatabase();
+        readyPing.catch(() => { readyPing = null; }); // retry immediately after a failure
+      }
+      await readyPing;
       return res.json({
         success: true,
         data: {

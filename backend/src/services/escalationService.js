@@ -159,8 +159,7 @@ async function loadOpenRequests(client) {
      FROM blood_requests br
      JOIN hospitals h ON h.id = br.hospital_id
      WHERE br.status = 'open'
-     ORDER BY br.created_at ASC
-     FOR UPDATE OF br SKIP LOCKED`,
+     ORDER BY br.created_at ASC`,
   );
   return result.rows;
 }
@@ -188,6 +187,7 @@ async function loadCompatibleOnCallDonors(client, bloodGroup) {
        AND account_status = 'active'
        AND is_on_call = true
        AND deleted_at IS NULL
+       AND consent_given = true
        AND blood_group = ANY ($1::text[])
        AND latitude IS NOT NULL
        AND longitude IS NOT NULL`,
@@ -197,19 +197,9 @@ async function loadCompatibleOnCallDonors(client, bloodGroup) {
 }
 
 async function notifyDonors(client, { request, donors, hospitalName }) {
-  const pushPayload = bloodRequestPushPayload({
-    requestId: request.id,
-    bloodGroup: request.blood_group,
-    urgency: request.urgency,
-    unitsNeeded: request.units_needed,
-    hospitalName,
-  });
-
-  let notified = 0;
   for (const donor of donors) {
-    const notifId = uuidv4();
     const title = `${String(request.urgency).toUpperCase()}: Blood needed at ${hospitalName}`;
-    const body = `${request.blood_group} blood needed urgently. ${request.units_needed} unit(s) required.`;
+    const body = `${request.blood_group} blood needed${request.urgency === 'scheduled' ? '' : ' urgently'}. ${request.units_needed} unit(s) required.`;
     const data = {
       request_id: request.id,
       hospital_id: request.hospital_id,
@@ -220,16 +210,27 @@ async function notifyDonors(client, { request, donors, hospitalName }) {
     await client.query(
       `INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, false, NOW())`,
-      [notifId, donor.id, 'blood_request', title, body, JSON.stringify(data)],
+      [uuidv4(), donor.id, 'blood_request', title, body, JSON.stringify(data)],
     );
+  }
+  return donors.map((donor) => ({ donorId: donor.id, request, hospitalName }));
+}
+
+/** Push + socket delivery; runs only after the notification rows are committed. */
+async function deliver(client, deliveries) {
+  for (const { donorId, request, hospitalName } of deliveries) {
     try {
-      await sendPushToUser(donor.id, pushPayload, {
-        queryFn: (sql, params) => client.query(sql, params),
-      });
+      await sendPushToUser(donorId, bloodRequestPushPayload({
+        requestId: request.id,
+        bloodGroup: request.blood_group,
+        urgency: request.urgency,
+        unitsNeeded: request.units_needed,
+        hospitalName,
+      }), { queryFn: (sql, params) => client.query(sql, params) });
     } catch (pushErr) {
       console.error('Escalation push failed:', pushErr.message);
     }
-    publishToUser(donor.id, 'blood_request', {
+    publishToUser(donorId, 'blood_request', {
       request_id: request.id,
       blood_group: request.blood_group,
       urgency: request.urgency,
@@ -237,9 +238,7 @@ async function notifyDonors(client, { request, donors, hospitalName }) {
       hospital_name: hospitalName,
       escalation_level: request.escalation_level,
     });
-    notified += 1;
   }
-  return notified;
 }
 
 async function escalateOne(client, request, { now = new Date() } = {}) {
@@ -274,11 +273,12 @@ async function escalateOne(client, request, { now = new Date() } = {}) {
   });
 
   const hospitalName = request.hospital_name || 'Hospital';
-  const donorsNotified = await notifyDonors(client, {
+  const deliveries = await notifyDonors(client, {
     request: escalated,
     donors: newlyInRange,
     hospitalName,
   });
+  const donorsNotified = deliveries.length;
 
   publishToHospital(request.hospital_id, 'request_escalated', {
     request_id: request.id,
@@ -293,6 +293,7 @@ async function escalateOne(client, request, { now = new Date() } = {}) {
     escalation_level: nextLevel,
     radius_km: newRadius,
     donors_notified: donorsNotified,
+    deliveries,
   };
 }
 
@@ -315,7 +316,9 @@ async function expireOne(client, request, { now = new Date() } = {}) {
 }
 
 /**
- * One escalation + expiry pass. Caller holds the advisory lock and transaction.
+ * One escalation + expiry pass. Caller holds the advisory lock; this function owns the transactions:
+ * one short transaction per request (so hospital verification never waits on the whole pass),
+ * and pushes only after that request's notifications are committed (no re-ping after a rollback).
  */
 export async function runEscalationPass(client, { now = new Date() } = {}) {
   const summary = {
@@ -330,18 +333,34 @@ export async function runEscalationPass(client, { now = new Date() } = {}) {
   summary.examined = requests.length;
 
   for (const request of requests) {
-    if (isDueForExpiry(request, { now })) {
-      const result = await expireOne(client, request, { now });
+    const expire = isDueForExpiry(request, { now });
+    if (!expire && !isDueForEscalation(request, { now, acceptCount: request.accept_count })) continue;
+
+    let result;
+    await client.query('BEGIN');
+    try {
+      const locked = await client.query(
+        "SELECT id FROM blood_requests WHERE id = $1 AND status = 'open' FOR UPDATE SKIP LOCKED",
+        [request.id],
+      );
+      if (locked.rowCount > 0) {
+        result = expire ? await expireOne(client, request, { now }) : await escalateOne(client, request, { now });
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    }
+    if (!result) continue; // closed or being verified right now; next tick re-examines it
+
+    if (expire) {
       if (result.expired) {
         summary.expired += 1;
         summary.details.push({ type: 'expired', request_id: request.id });
       }
-      continue;
-    }
-
-    if (isDueForEscalation(request, { now, acceptCount: request.accept_count })) {
-      const result = await escalateOne(client, request, { now });
+    } else {
       if (result.escalated) {
+        await deliver(client, result.deliveries);
         summary.escalated += 1;
         summary.donors_notified += result.donors_notified;
         summary.details.push({

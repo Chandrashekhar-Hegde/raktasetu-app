@@ -30,16 +30,12 @@ try {
     process.exitCode = 0;
   } else {
     try {
-      await client.query('BEGIN');
+      // runEscalationPass owns its per-request transactions.
       const summary = await runEscalationPass(client);
-      await client.query('COMMIT');
       console.log(
         `escalation: examined=${summary.examined} escalated=${summary.escalated} `
         + `expired=${summary.expired} donors_notified=${summary.donors_notified}`,
       );
-    } catch (err) {
-      await client.query('ROLLBACK').catch(() => {});
-      throw err;
     } finally {
       await client.query('SELECT pg_advisory_unlock($1)', [ADVISORY_LOCK_KEY]).catch(() => {});
     }

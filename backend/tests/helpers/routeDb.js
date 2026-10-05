@@ -72,3 +72,22 @@ export async function openRequest(owner, { bloodGroup = 'O+', lat = 15.36, lng =
   );
   return { hospitalUserId: user.rows[0].id, hospitalId: hospital.rows[0].id, requestId: request.rows[0].id };
 }
+
+/** Registers a hospital through the API, approves it as owner (optionally with coordinates), returns auth headers. */
+export async function hospitalAuth(app, owner, request, { lat = null, lng = null } = {}) {
+  const base = donorPayload();
+  const payload = {
+    email: base.email.replace('donor', 'hospital'), phone: base.phone,
+    password: base.password, name: 'Route Test Hospital', role: 'hospital', city: 'Hubballi', state: 'Karnataka',
+    hospital_name: 'Route Test Hospital', address: 'Main Road 1', license_number: `LIC-${Date.now()}${counter++}`,
+    consent_given: true, consent_policy_version: '2026-07-15',
+  };
+  await request(app).post('/api/auth/register').send(payload).expect(202); // pending approval
+  await owner.query(
+    `UPDATE hospitals SET approval_status = 'approved', is_verified = true, latitude = $2, longitude = $3
+     WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+    [payload.email, lat, lng],
+  );
+  const login = await request(app).post('/api/auth/login').send({ email: payload.email, password: payload.password }).expect(200);
+  return { Authorization: `Bearer ${login.body.data.token}` };
+}

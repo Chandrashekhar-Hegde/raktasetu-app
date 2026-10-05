@@ -6,6 +6,8 @@ All notable changes to RaktaSetu are documented in this file.
 
 ### Added
 
+- `GET /api/donor/responses/:requestId` for the On-the-way screen.
+- Route tests against a real Postgres (`backend/tests/*.route.test.js`); CI now runs every DB-backed test and fails if any test is skipped.
 - `GET /api/health/ready` pings Postgres (`SELECT 1`) and returns 503 when the database is unreachable or Neon compute quota is exhausted. Railway liveness remains `GET /api/health` (no DB) so the SPA is not restarted during a quota outage.
 - Auth and other API routes map Postgres quota (`53000`) and connect failures to 503 `COMPUTE_QUOTA_EXCEEDED` / `DATABASE_UNAVAILABLE` instead of generic 500 `LOGIN_FAILED`.
 - Escalation and retention crons log quota/unavailable errors and **exit 0** so Railway cron ticks are not marked CRASHED while the database is gated.
@@ -16,6 +18,18 @@ All notable changes to RaktaSetu are documented in this file.
 
 ### Fixed
 
+- API no longer exits on an async route error (Express 5): a database blip on `/api/auth/me` used to take the whole service down.
+- Admin user/request lists past the first page (keyset SQL was malformed and always returned 500).
+- Donor dashboard credit balance now matches the ledger (it could show 400 for a real balance of 100).
+- Donor responses: arrived/completed are final, arrival requires acceptance, incompatible blood groups cannot accept.
+- Withdrawing consent takes a donor off call and out of hospital and escalation matching (DPDP).
+- Hospital request creation is one transaction (no duplicate pings on retry); pushes are sent after commit. Hospitals without coordinates get a clear 409 instead of silently notifying nobody.
+- Escalation cron locks one request at a time and pushes after commit, so it no longer blocks donation verification.
+- Retention: expiring a redemption and releasing its credits commit together.
+- Rate limiting keys on a verified token (forged tokens no longer get fresh buckets); the strict per-IP limit applies only to credential routes, not `/me` or `/refresh`.
+- Refresh-token replay after rotation revokes the whole session family; logged-out page loads get 401 instead of 400.
+- Logs carry error code/message only (no phone/email from Postgres `detail`); duplicate phone on sign-up or profile edit returns 409.
+- Production refuses to run if the database runtime role can bypass row-level security.
 - Escalation and retention crons no longer crash on `Connection terminated unexpectedly` when Neon drops the socket mid-run: the pg client now has an `'error'` listener and socket-loss errors are treated as transient (logged, exit 0).
 
 ### Documentation

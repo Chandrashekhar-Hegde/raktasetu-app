@@ -1,5 +1,6 @@
 import express from 'express';
 import { query } from '../db.js';
+import { withAuthorizationContext } from '../db/authorizedTransaction.js';
 import { respondIfDatabaseDown } from '../db/computeQuota.js';
 import { authenticate, requireActiveAccount, requireApprovedHospital, requireRole } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -125,7 +126,7 @@ router.get('/dashboard', async (req, res) => {
     });
   } catch (err) {
     if (respondIfDatabaseDown(res, err)) return;
-    console.error('Hospital dashboard error:', err);
+    console.error('Hospital dashboard error:', err?.code || '', err?.message);
     return res.status(500).json({ success: false, error: 'Failed to load dashboard' });
   }
 });
@@ -136,113 +137,85 @@ router.get('/dashboard', async (req, res) => {
  */
 router.post('/requests', validate(requestCreateSchema), async (req, res) => {
   try {
-    const hospitalResult = await query('SELECT id, latitude, longitude FROM hospitals WHERE user_id = $1', [req.user.id]);
-    if (hospitalResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Hospital profile not found' });
-    }
-    const hospital = hospitalResult.rows[0];
-
+    // zod (requestCreateSchema) already bounds every field.
     const { blood_group, units_needed, urgency, radius_km, notes, needed_by } = req.body;
-
-    if (!blood_group || units_needed === undefined || units_needed === null || !urgency) {
-      return res.status(400).json({ success: false, error: 'blood_group, units_needed, and urgency are required' });
-    }
-
-    const unitsNum = parseInt(units_needed, 10);
-    if (isNaN(unitsNum) || unitsNum < 1 || unitsNum > 50) {
-      return res.status(400).json({ success: false, error: 'units_needed must be an integer between 1 and 50' });
-    }
-
-    if (!['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'].includes(blood_group)) {
-      return res.status(400).json({ success: false, error: 'Invalid blood group' });
-    }
-
-    if (!['scheduled', 'urgent', 'critical'].includes(urgency)) {
-      return res.status(400).json({ success: false, error: 'urgency must be scheduled, urgent, or critical' });
-    }
-
-    const radiusNum = radius_km !== undefined ? parseInt(radius_km, 10) : 10;
-    if (isNaN(radiusNum) || radiusNum < 1 || radiusNum > 100) {
-      return res.status(400).json({ success: false, error: 'radius_km must be between 1 and 100' });
-    }
-
-    const requestId = uuidv4();
-    const refCode = generateRefCode();
     const isRare = RARE.includes(blood_group);
-    const effectiveRadius = isRare ? 25 : radiusNum;
+    const effectiveRadius = isRare ? 25 : radius_km;
 
-    const escalationLevel = isRare ? 1 : 0;
-    const result = await query(
-      `INSERT INTO blood_requests (id, hospital_id, blood_group, units_needed, urgency, status, radius_km, latitude, longitude, notes, ref_code, needed_by, escalation_level, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
-       RETURNING *`,
-      [
-        requestId, hospital.id, blood_group, unitsNum, urgency, 'open',
-        effectiveRadius, hospital.latitude, hospital.longitude,
-        notes || null, refCode, needed_by ? new Date(needed_by) : null, escalationLevel,
-      ]
-    );
-
-    const request = result.rows[0];
-
-    // Find compatible on-call donors within radius (minimal fields via SECURITY DEFINER)
-    const compatibleDonors = GIVERS[blood_group];
-    const donorsResult = await query(
-      'SELECT id, blood_group, latitude, longitude FROM hospital_visible_on_call_donors($1)',
-      [compatibleDonors],
-    );
-
-    const nearbyDonors = donorsResult.rows
-      .map((d) => {
-        const dist = haversine(
-          parseFloat(hospital.latitude), parseFloat(hospital.longitude),
-          parseFloat(d.latitude), parseFloat(d.longitude),
+    // Request + its notifications commit together: a retry after a failure can't double-ping donors.
+    const created = await withAuthorizationContext(
+      { userId: req.user.id, role: 'hospital', hospitalId: req.user.hospital_id },
+      async (client) => {
+        const hospitalResult = await client.query(
+          'SELECT id, name, latitude, longitude FROM hospitals WHERE user_id = $1',
+          [req.user.id],
         );
-        return { id: d.id, blood_group: d.blood_group, distance_km: Math.round(dist * 10) / 10 };
-      })
-      .filter((d) => d.distance_km <= effectiveRadius);
+        const hospital = hospitalResult.rows[0];
+        if (!hospital) return { error: [404, 'HOSPITAL_NOT_FOUND', 'Hospital profile not found'] };
+        if (hospital.latitude == null || hospital.longitude == null) {
+          // Without coordinates no donor can be matched; say so instead of silently notifying nobody.
+          return { error: [409, 'HOSPITAL_LOCATION_MISSING', 'Set your hospital location before creating requests'] };
+        }
 
-    const hospitalName = req.user.name || 'Hospital';
+        const requestId = uuidv4();
+        const inserted = await client.query(
+          `INSERT INTO blood_requests (id, hospital_id, blood_group, units_needed, urgency, status, radius_km, latitude, longitude, notes, ref_code, needed_by, escalation_level, created_at)
+           VALUES ($1, $2, $3, $4, $5, 'open', $6, $7, $8, $9, $10, $11, $12, NOW())
+           RETURNING *`,
+          [
+            requestId, hospital.id, blood_group, units_needed, urgency,
+            effectiveRadius, hospital.latitude, hospital.longitude,
+            notes || null, generateRefCode(), needed_by ? new Date(needed_by) : null, isRare ? 1 : 0,
+          ],
+        );
+
+        const donorsResult = await client.query(
+          'SELECT id, latitude, longitude FROM hospital_visible_on_call_donors($1)',
+          [GIVERS[blood_group]],
+        );
+        const donorIds = donorsResult.rows
+          .filter((d) => haversine(
+            parseFloat(hospital.latitude), parseFloat(hospital.longitude),
+            parseFloat(d.latitude), parseFloat(d.longitude),
+          ) <= effectiveRadius)
+          .map((d) => d.id);
+
+        const title = `${urgency.toUpperCase()}: Blood needed at ${hospital.name}`;
+        const body = `${blood_group} blood needed${urgency === 'scheduled' ? '' : ' urgently'}. ${units_needed} unit(s) required.`;
+        const data = { request_id: requestId, hospital_id: hospital.id, blood_group, urgency };
+        await client.query(
+          `INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at)
+           SELECT uuid_generate_v4(), donor_id, 'blood_request', $2, $3, $4, false, NOW()
+           FROM unnest($1::uuid[]) AS donor_id`,
+          [donorIds, title, body, JSON.stringify(data)],
+        );
+        return { request: inserted.rows[0], hospitalName: hospital.name, donorIds };
+      },
+    );
+    if (created.error) {
+      const [status, code, message] = created.error;
+      return res.status(status).json({ success: false, error: { code, message } });
+    }
+
+    const { request, hospitalName, donorIds } = created;
+    res.status(201).json({ success: true, data: { request, donors_notified: donorIds.length } });
+
+    // Delivery after commit and after responding: slow or failing pushes never block or undo the request.
     const pushPayload = bloodRequestPushPayload({
-      requestId,
-      bloodGroup: blood_group,
-      urgency,
-      unitsNeeded: units_needed,
-      hospitalName,
+      requestId: request.id, bloodGroup: blood_group, urgency, unitsNeeded: units_needed, hospitalName,
     });
-
-    // Persist notification, push, and optional socket — push failures must not fail the request
-    for (const donor of nearbyDonors) {
-      const notifId = uuidv4();
-      const title = `${urgency.toUpperCase()}: Blood needed at ${hospitalName}`;
-      const body = `${blood_group} blood needed urgently. ${units_needed} unit(s) required.`;
-      const data = { request_id: requestId, hospital_id: hospital.id, blood_group, urgency };
-      await query(
-        `INSERT INTO notifications (id, user_id, type, title, body, data, is_read, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-        [notifId, donor.id, 'blood_request', title, body, JSON.stringify(data), false],
-      );
-      try {
-        await sendPushToUser(donor.id, pushPayload);
-      } catch (pushErr) {
-        console.error('Push delivery failed for donor notification:', pushErr.message);
-      }
-      publishToUser(donor.id, 'blood_request', {
-        request_id: requestId,
-        blood_group,
-        urgency,
-        units_needed,
-        hospital_name: hospitalName,
+    const results = await Promise.allSettled(donorIds.map((id) => sendPushToUser(id, pushPayload)));
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed) console.error(`Push delivery failed for ${failed}/${donorIds.length} donors on request ${request.id}`);
+    for (const id of donorIds) {
+      publishToUser(id, 'blood_request', {
+        request_id: request.id, blood_group, urgency, units_needed, hospital_name: hospitalName,
       });
     }
-
-    return res.status(201).json({
-      success: true,
-      data: { request, donors_notified: nearbyDonors.length },
-    });
   } catch (err) {
+    if (res.headersSent) return;
     if (respondIfDatabaseDown(res, err)) return;
-    console.error('Create request error:', err);
+    console.error('Create request error:', err.code || '', err.message);
     return res.status(500).json({ success: false, error: 'Failed to create request' });
   }
 });
@@ -298,7 +271,7 @@ router.get('/requests', validate(hospitalRequestQuerySchema, 'query'), async (re
     return res.json({ success: true, data: { requests: requestsResult.rows } });
   } catch (err) {
     if (respondIfDatabaseDown(res, err)) return;
-    console.error('Search request error:', err);
+    console.error('Search request error:', err?.code || '', err?.message);
     return res.status(500).json({ success: false, error: 'Failed to search requests' });
   }
 });
@@ -342,7 +315,7 @@ router.get('/requests/:id', validate(requestIdParamsSchema, 'params'), async (re
     });
   } catch (err) {
     if (respondIfDatabaseDown(res, err)) return;
-    console.error('Request detail error:', err);
+    console.error('Request detail error:', err?.code || '', err?.message);
     return res.status(500).json({ success: false, error: 'Failed to fetch request detail' });
   }
 });
@@ -384,7 +357,7 @@ router.patch('/requests/:id', validate(requestIdParamsSchema, 'params'), validat
     return res.json({ success: true, data: { request: result.rows[0] } });
   } catch (err) {
     if (respondIfDatabaseDown(res, err)) return;
-    console.error('Update request error:', err);
+    console.error('Update request error:', err?.code || '', err?.message);
     return res.status(500).json({ success: false, error: 'Failed to update request' });
   }
 });
@@ -405,7 +378,7 @@ router.post('/verify-donation', validate(donationCompletionSchema), async (req, 
     return res.json({ success: true, data: { donation } });
   } catch (err) {
     if (respondIfDatabaseDown(res, err)) return;
-    console.error('Verify donation error:', err);
+    console.error('Verify donation error:', err?.code || '', err?.message);
     return res.status(err.status || 500).json({
       success: false,
       error: { code: err.code || 'DONATION_COMPLETION_FAILED', message: err.message || 'Failed to verify donation' },
@@ -427,7 +400,7 @@ router.post('/verify-redemption', validate(verifyRedemptionSchema), async (req, 
     return res.json({ success: true, data: { redemption } });
   } catch (err) {
     if (respondIfDatabaseDown(res, err)) return;
-    console.error('Verify redemption error:', err);
+    console.error('Verify redemption error:', err?.code || '', err?.message);
     return res.status(err.status || 500).json({
       success: false,
       error: {
@@ -479,7 +452,7 @@ router.get('/donors', validate(donorSearchQuerySchema, 'query'), async (req, res
     return res.json({ success: true, data: { donors } });
   } catch (err) {
     if (respondIfDatabaseDown(res, err)) return;
-    console.error('Nearby donors error:', err);
+    console.error('Nearby donors error:', err?.code || '', err?.message);
     return res.status(500).json({ success: false, error: 'Failed to fetch nearby donors' });
   }
 });

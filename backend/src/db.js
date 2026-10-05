@@ -3,6 +3,7 @@ const { Pool } = pg;
 import dotenv from 'dotenv';
 import { AsyncLocalStorage } from 'async_hooks';
 import { postgresSslConfig } from './db/ssl.js';
+import { isProductionEnv } from './auth/refreshCookie.js';
 import { wrapDatabaseError } from './db/computeQuota.js';
 
 dotenv.config();
@@ -16,7 +17,7 @@ export const pool = new Pool({
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected DB error:', err);
+  console.error('Unexpected DB error:', err?.code || '', err?.message);
 });
 
 const authorizationStore = new AsyncLocalStorage();
@@ -24,12 +25,25 @@ const authorizationStore = new AsyncLocalStorage();
 /** Neon login roles may retain BYPASSRLS; assume a NOLOGIN NOBYPASSRLS runtime role. */
 export async function ensureRlsRole(client) {
   const role = process.env.DB_RUNTIME_ROLE
-    || (process.env.NODE_ENV === 'production' ? 'raktasetu_rls' : '');
+    || (isProductionEnv() ? 'raktasetu_rls' : '');
   if (!role) return;
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(role)) {
     throw new Error('Invalid DB_RUNTIME_ROLE');
   }
   await client.query(`SET ROLE ${role}`);
+}
+
+/** True when the runtime role can bypass RLS (every policy would be silently ignored). */
+export async function runtimeRoleBypassesRls() {
+  const client = await pool.connect();
+  try {
+    await ensureRlsRole(client);
+    const result = await client.query('SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user');
+    return result.rows[0]?.rolbypassrls === true;
+  } finally {
+    await client.query('RESET ROLE').catch(() => {});
+    client.release();
+  }
 }
 
 export function runWithAuthorizationContext(context, work) {

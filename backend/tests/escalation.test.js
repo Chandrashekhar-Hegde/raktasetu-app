@@ -191,7 +191,15 @@ test('runEscalationPass expires then escalates with fake client', async () => {
 
   const client = {
     async query(sql, params) {
-      if (sql.includes('FROM blood_requests br') && sql.includes('FOR UPDATE')) {
+      if (sql.includes('FOR UPDATE SKIP LOCKED')) {
+        state.locks = (state.locks || 0) + 1;
+        return { rowCount: 1, rows: [{ id: params[0] }] };
+      }
+      if (sql === 'BEGIN' || sql === 'COMMIT') {
+        state.tx = [...(state.tx || []), sql];
+        return { rows: [] };
+      }
+      if (sql.includes('FROM blood_requests br') && sql.includes("WHERE br.status = 'open'")) {
         return {
           rows: [
             {
@@ -287,6 +295,8 @@ test('runEscalationPass expires then escalates with fake client', async () => {
   assert.equal(state.notifications.length, 1);
   assert.equal(state.notifications[0][1], 'new-1');
 
+  assert.equal(state.locks, 2, 'each due request is locked in its own transaction');
+  assert.deepEqual(state.tx, ['BEGIN', 'COMMIT', 'BEGIN', 'COMMIT']);
   const escalateUpdate = state.updates.find((u) => u.type === 'escalate');
   assert.equal(escalateUpdate.params[0], 10); // radius
   assert.equal(escalateUpdate.params[1], 1); // level

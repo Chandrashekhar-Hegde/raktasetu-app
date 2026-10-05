@@ -16,6 +16,7 @@ import { buildAccountExport } from '../utils/dataExport.js';
 import { disconnectUser } from '../realtime/publisher.js';
 import { mapDatabaseHttpError } from '../db/computeQuota.js';
 import {
+  CURRENT_POLICY_VERSION,
   consentSchema,
   deleteAccountSchema,
   googleLinkSchema,
@@ -139,7 +140,11 @@ router.post('/register', validate(registrationSchema), async (req, res) => {
     }
     return sessionResponse(res, req, 201, result.user, result.session);
   } catch (error) {
-    console.error('Registration failed:', error.message);
+    // Two sign-ups racing on the same email/phone both pass the pre-check; the unique index decides.
+    if (error.code === '23505' || error.cause?.code === '23505') {
+      return failure(res, 409, 'IDENTITY_ALREADY_EXISTS', 'Email or phone is already registered');
+    }
+    console.error('Registration failed:', error.code || '', error.message);
     return failureFromCaught(res, error, 500, 'REGISTRATION_FAILED', 'Registration failed');
   }
 });
@@ -516,11 +521,13 @@ router.post('/logout', authenticate, async (req, res) => {
 
 router.post('/consent', authenticate, validate(consentSchema), async (req, res) => {
   const result = await query(
+    // Withdrawing consent also takes the donor off call, so matching stops immediately.
     `UPDATE users SET consent_given = $1, consent_given_at = NOW(),
-       consent_policy_version = $2, consent_source = 'account_settings', updated_at = NOW()
+       consent_policy_version = $2, consent_source = 'account_settings',
+       is_on_call = CASE WHEN $1 THEN is_on_call ELSE false END, updated_at = NOW()
      WHERE id = $3
-     RETURNING consent_given, consent_given_at, consent_policy_version, consent_source`,
-    [req.body.consent_given, '2026-07-15', req.user.id],
+     RETURNING consent_given, consent_given_at, consent_policy_version, consent_source, is_on_call`,
+    [req.body.consent_given, CURRENT_POLICY_VERSION, req.user.id],
   );
   await logAudit({
     userId: req.user.id,
@@ -649,7 +656,7 @@ router.post('/restore-account', validate(restoreAccountSchema), async (req, res)
 });
 
 router.get('/policy-version', (req, res) => {
-  res.json({ success: true, data: { version: '2026-07-15' } });
+  res.json({ success: true, data: { version: CURRENT_POLICY_VERSION } });
 });
 
 router.use((error, req, res, next) => {
