@@ -70,6 +70,8 @@ export function createApp({ env = process.env, pingDatabase = defaultPingDatabas
   }));
   app.use(cookieParser());
   app.use(express.json({ limit: '10kb', strict: true }));
+  // Express 5 leaves req.body undefined when no body is sent; routes destructure it.
+  app.use((req, res, next) => { req.body ??= {}; next(); });
   // Global API budget: ~400 / 15 min per authenticated user (or per IP when anonymous).
   // Auth routes keep a tighter IP-keyed limiter below so login abuse is not shared-NAT amortized.
   app.use(rateLimit({
@@ -160,13 +162,15 @@ export function createApp({ env = process.env, pingDatabase = defaultPingDatabas
       });
     }
     const status = error.type === 'entity.too.large' ? 413 : (error.status || 500);
-    return res.status(status).json({
-      success: false,
-      error: {
-        code: status === 413 ? 'BODY_TOO_LARGE' : 'INTERNAL_ERROR',
-        message: status === 413 ? 'Request body is too large' : 'Internal server error',
-      },
-    });
+    if (status >= 500) {
+      // code/message only: pg errors carry row values (phone, email) in `detail`.
+      console.error(`${req.method} ${req.path} failed:`, error.code || '', error.message);
+    }
+    let code = 'INTERNAL_ERROR';
+    let message = 'Internal server error';
+    if (status === 413) { code = 'BODY_TOO_LARGE'; message = 'Request body is too large'; }
+    else if (status < 500) { code = 'BAD_REQUEST'; message = error.expose === false ? 'Bad request' : error.message; }
+    return res.status(status).json({ success: false, error: { code, message } });
   });
 
   return app;

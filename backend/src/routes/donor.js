@@ -64,13 +64,11 @@ router.get('/dashboard', async (req, res) => {
 
     // Donor stats
     const statsResult = await query(
+      // Signed ledger: balance is SUM(amount), same as /credits and redemptionService.
+      // Separate subqueries: joining donations x credits multiplied rows.
       `SELECT
-        COUNT(DISTINCT d.id) AS total_donations,
-        COALESCE(SUM(c.amount) FILTER (WHERE c.type = 'earned'), 0) - COALESCE(SUM(c.amount) FILTER (WHERE c.type = 'redeemed'), 0) AS credit_balance
-       FROM users u
-       LEFT JOIN donations d ON d.donor_id = u.id AND d.verified_at IS NOT NULL
-       LEFT JOIN credits c ON c.donor_id = u.id
-       WHERE u.id = $1`,
+        (SELECT COUNT(*) FROM donations WHERE donor_id = $1 AND verified_at IS NOT NULL) AS total_donations,
+        (SELECT COALESCE(SUM(amount), 0) FROM credits WHERE donor_id = $1) AS credit_balance`,
       [donorId]
     );
     const stats = statsResult.rows[0] || { total_donations: 0, credit_balance: 0 };
@@ -252,12 +250,12 @@ router.post('/respond/:requestId', validate(donorRequestParamsSchema, 'params'),
       return res.status(400).json({ success: false, error: 'Status must be accepted or declined' });
     }
 
+    const donorResult = await query(
+      'SELECT next_eligible_date, sex, blood_group FROM users WHERE id = $1',
+      [donorId],
+    );
+    const donor = donorResult.rows[0];
     if (status === 'accepted') {
-      const eligibility = await query(
-        'SELECT next_eligible_date, sex FROM users WHERE id = $1',
-        [donorId],
-      );
-      const donor = eligibility.rows[0];
       if (!isDonorEligible(donor?.next_eligible_date)) {
         const gapDays = nbtcIntervalDays(donor?.sex);
         return res.status(409).json({
@@ -271,35 +269,35 @@ router.post('/respond/:requestId', validate(donorRequestParamsSchema, 'params'),
     }
 
     // Verify request exists and is open
-    const reqCheck = await query('SELECT id, status FROM blood_requests WHERE id = $1', [requestId]);
+    const reqCheck = await query('SELECT id, status, blood_group FROM blood_requests WHERE id = $1', [requestId]);
     if (reqCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Request not found' });
     }
     if (reqCheck.rows[0].status !== 'open') {
       return res.status(400).json({ success: false, error: 'Request is no longer open' });
     }
+    if (status === 'accepted' && !GIVERS[reqCheck.rows[0].blood_group]?.includes(donor?.blood_group)) {
+      return res.status(409).json({
+        success: false,
+        error: { code: 'BLOOD_GROUP_INCOMPATIBLE', message: 'Your blood group cannot donate for this request' },
+      });
+    }
 
-    // Check if donor already responded
-    const existing = await query(
-      'SELECT id, status FROM donor_responses WHERE request_id = $1 AND donor_id = $2',
-      [requestId, donorId]
+    // One row per (request, donor); arrived/completed responses are final.
+    const upsert = await query(
+      `INSERT INTO donor_responses (id, request_id, donor_id, status, responded_at, created_at)
+       VALUES ($1, $2, $3, $4, NOW(), NOW())
+       ON CONFLICT (request_id, donor_id) DO UPDATE SET status = EXCLUDED.status, responded_at = NOW()
+         WHERE donor_responses.status IN ('pending', 'accepted', 'declined')
+       RETURNING *`,
+      [uuidv4(), requestId, donorId, status]
     );
-
-    let response;
-    if (existing.rows.length > 0) {
-      const result = await query(
-        `UPDATE donor_responses SET status = $1, responded_at = NOW() WHERE request_id = $2 AND donor_id = $3 RETURNING *`,
-        [status, requestId, donorId]
-      );
-      response = result.rows[0];
-    } else {
-      const responseId = uuidv4();
-      const result = await query(
-        `INSERT INTO donor_responses (id, request_id, donor_id, status, responded_at, created_at)
-         VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING *`,
-        [responseId, requestId, donorId, status]
-      );
-      response = result.rows[0];
+    const response = upsert.rows[0];
+    if (!response) {
+      return res.status(409).json({
+        success: false,
+        error: { code: 'RESPONSE_FINAL', message: 'You have already arrived or donated for this request' },
+      });
     }
 
     // Create notification for hospital
@@ -344,19 +342,24 @@ router.post('/arrived/:requestId', validate(donorRequestParamsSchema, 'params'),
     const donorId = req.user.id;
     const { requestId } = req.params;
 
-    const existing = await query(
-      'SELECT id, status FROM donor_responses WHERE request_id = $1 AND donor_id = $2',
-      [requestId, donorId]
-    );
-
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'No response found for this request' });
-    }
-
     const result = await query(
-      `UPDATE donor_responses SET status = 'arrived', arrived_at = NOW() WHERE request_id = $1 AND donor_id = $2 RETURNING *`,
+      `UPDATE donor_responses SET status = 'arrived', arrived_at = NOW()
+       WHERE request_id = $1 AND donor_id = $2 AND status = 'accepted' RETURNING *`,
       [requestId, donorId]
     );
+    if (result.rowCount === 0) {
+      const existing = await query(
+        'SELECT status FROM donor_responses WHERE request_id = $1 AND donor_id = $2',
+        [requestId, donorId]
+      );
+      if (existing.rows.length === 0) {
+        return res.status(404).json({ success: false, error: 'No response found for this request' });
+      }
+      return res.status(409).json({
+        success: false,
+        error: { code: 'NOT_ACCEPTED', message: 'Only an accepted response can be marked as arrived' },
+      });
+    }
 
     // Notify hospital
     const requestInfo = await query(

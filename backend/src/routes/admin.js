@@ -33,24 +33,25 @@ function pageResult(rows, limit) {
   };
 }
 
-function cursorWhere(cursor, startIndex = 1) {
+function cursorWhere(cursor, alias = '', startIndex = 1) {
   if (!cursor) return { sql: '', params: [] };
   const parsed = decodeCursor(cursor);
+  const t = alias ? `${alias}.` : '';
   return {
-    sql: `AND (created_at, id) < ($${startIndex}::timestamptz, $${startIndex + 1}::uuid)`,
+    sql: `AND (${t}created_at, ${t}id) < ($${startIndex}::timestamptz, $${startIndex + 1}::uuid)`,
     params: [parsed.created_at, parsed.id],
   };
 }
 
 router.get('/users', validate(paginationSchema, 'query'), async (req, res) => {
   const { limit, cursor } = req.query;
-  const keyset = cursorWhere(cursor);
+  const keyset = cursorWhere(cursor, 'u');
   const result = await query(
     `SELECT u.id,u.email,u.phone,u.name,u.role,u.blood_group,u.city,u.is_verified,
             u.is_on_call,u.consent_given,u.account_status,u.created_at,
             h.id AS hospital_id,h.approval_status,h.license_number
      FROM users u LEFT JOIN hospitals h ON h.user_id=u.id
-     WHERE u.deleted_at IS NULL ${keyset.sql.replaceAll('created_at', 'u.created_at').replaceAll('id)', 'u.id)')}
+     WHERE u.deleted_at IS NULL ${keyset.sql}
      ORDER BY u.created_at DESC,u.id DESC LIMIT $${keyset.params.length + 1}`,
     [...keyset.params, limit + 1],
   );
@@ -63,12 +64,12 @@ router.get('/users', validate(paginationSchema, 'query'), async (req, res) => {
 
 router.get('/requests', validate(paginationSchema, 'query'), async (req, res) => {
   const { limit, cursor } = req.query;
-  const keyset = cursorWhere(cursor);
+  const keyset = cursorWhere(cursor, 'br');
   const result = await query(
     `SELECT br.id,br.hospital_id,br.blood_group,br.units_needed,br.urgency,br.status,
             br.radius_km,br.ref_code,br.needed_by,br.created_at,h.name AS hospital_name
      FROM blood_requests br JOIN hospitals h ON h.id=br.hospital_id
-     WHERE true ${keyset.sql.replaceAll('created_at', 'br.created_at').replaceAll('id)', 'br.id)')}
+     WHERE true ${keyset.sql}
      ORDER BY br.created_at DESC,br.id DESC LIMIT $${keyset.params.length + 1}`,
     [...keyset.params, limit + 1],
   );

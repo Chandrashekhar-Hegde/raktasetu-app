@@ -33,6 +33,8 @@ import {
 } from '../services/accountDeletionService.js';
 
 const router = express.Router();
+// Parallel tabs/requests can legitimately present a just-rotated token; only older reuse is theft.
+const REFRESH_REUSE_GRACE_MS = 30_000;
 
 function failure(res, status, code, message) {
   return res.status(status).json({ success: false, error: { code, message } });
@@ -412,8 +414,12 @@ router.post('/refresh', async (req, res) => {
   const refreshToken = readRefreshToken(req);
   const bodyKeys = Object.keys(req.body || {});
   const invalidBody = bodyKeys.some((key) => key !== 'refresh_token');
-  if (!refreshToken || invalidBody) {
+  if (invalidBody) {
     return failure(res, 400, 'VALIDATION_ERROR', 'A valid refresh token is required');
+  }
+  if (!refreshToken) {
+    // Logged-out visitors hit this on every page load; 401 is "no session", not a malformed request.
+    return failure(res, 401, 'NO_SESSION', 'No active session');
   }
   try {
     const result = await withAuthorizationContext({ role: 'auth' }, async (client) => {
@@ -428,6 +434,14 @@ router.post('/refresh', async (req, res) => {
         [hashRefreshToken(refreshToken)],
       );
       const record = found.rows[0];
+      if (record?.revoked_at && record.replaced_by && Date.now() - record.revoked_at.getTime() > REFRESH_REUSE_GRACE_MS) {
+        // A rotated token came back after the grace window: assume theft and end every session in the family.
+        await client.query(
+          'UPDATE refresh_tokens SET revoked_at = COALESCE(revoked_at, NOW()) WHERE family_id = $1',
+          [record.family_id],
+        );
+        return { invalid: true };
+      }
       if (!record || record.revoked_at || record.expires_at <= new Date()) return { invalid: true };
       if (record.account_status !== 'active' || record.deleted_at ||
           (record.role === 'hospital' && record.approval_status !== 'approved')) {
