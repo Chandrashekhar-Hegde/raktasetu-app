@@ -70,6 +70,8 @@ export function createApp({ env = process.env, pingDatabase = defaultPingDatabas
   }));
   app.use(cookieParser());
   app.use(express.json({ limit: '10kb', strict: true }));
+  // Express 5 leaves req.body undefined when no body is sent; routes destructure it.
+  app.use((req, res, next) => { req.body ??= {}; next(); });
   // Global API budget: ~400 / 15 min per authenticated user (or per IP when anonymous).
   // Auth routes keep a tighter IP-keyed limiter below so login abuse is not shared-NAT amortized.
   app.use(rateLimit({
@@ -80,12 +82,17 @@ export function createApp({ env = process.env, pingDatabase = defaultPingDatabas
     keyGenerator: apiRateLimitKey,
     skip: (req) => !req.path.startsWith('/api'),
   }));
-  app.use('/api/auth/', rateLimit({
+  // Strict per-IP budget only where credentials are guessed. /me and /refresh stay on the global
+  // limiter: many Indian mobile users share one carrier IP and refresh on every app open.
+  const credentialLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 30,
     standardHeaders: true,
     legacyHeaders: false,
-  }));
+  });
+  for (const path of ['/api/auth/login', '/api/auth/register', '/api/auth/google', '/api/auth/restore-account', '/api/auth/delete-account', '/api/auth/password']) {
+    app.use(path, credentialLimiter);
+  }
 
   app.use('/api/auth', authRoutes);
   app.use('/api/donor', donorRoutes);
@@ -103,9 +110,17 @@ export function createApp({ env = process.env, pingDatabase = defaultPingDatabas
       },
     });
   });
+  // Unauthenticated and DB-backed: share one ping per 30s so callers can't burn Neon compute.
+  let readyPing = null;
+  let readyPingAt = 0;
   app.get('/api/health/ready', async (req, res) => {
     try {
-      await pingDatabase();
+      if (!readyPing || Date.now() - readyPingAt > 30_000) {
+        readyPingAt = Date.now();
+        readyPing = pingDatabase();
+        readyPing.catch(() => { readyPing = null; }); // retry immediately after a failure
+      }
+      await readyPing;
       return res.json({
         success: true,
         data: {
@@ -160,13 +175,15 @@ export function createApp({ env = process.env, pingDatabase = defaultPingDatabas
       });
     }
     const status = error.type === 'entity.too.large' ? 413 : (error.status || 500);
-    return res.status(status).json({
-      success: false,
-      error: {
-        code: status === 413 ? 'BODY_TOO_LARGE' : 'INTERNAL_ERROR',
-        message: status === 413 ? 'Request body is too large' : 'Internal server error',
-      },
-    });
+    if (status >= 500) {
+      // code/message only: pg errors carry row values (phone, email) in `detail`.
+      console.error(`${req.method} ${req.path} failed:`, error.code || '', error.message);
+    }
+    let code = 'INTERNAL_ERROR';
+    let message = 'Internal server error';
+    if (status === 413) { code = 'BODY_TOO_LARGE'; message = 'Request body is too large'; }
+    else if (status < 500) { code = 'BAD_REQUEST'; message = error.expose === false ? 'Bad request' : error.message; }
+    return res.status(status).json({ success: false, error: { code, message } });
   });
 
   return app;

@@ -185,7 +185,8 @@ export function validate(schema, source = 'body') {
         error: { code: 'VALIDATION_ERROR', message: 'Invalid request', issues: result.error.issues.map(({ path, message }) => ({ path, message })) },
       });
     }
-    req[source] = result.data;
+    // Express 5 exposes req.query as a getter; redefine it instead of assigning.
+    Object.defineProperty(req, source, { value: result.data, writable: true, configurable: true, enumerable: true });
     return next();
   };
 }

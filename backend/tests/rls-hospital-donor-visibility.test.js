@@ -6,7 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 const { Client } = pg;
 const hasTestDatabase = Boolean(process.env.TEST_DATABASE_URL?.startsWith('postgres'));
 
-async function withHospitalContext(client, { hospitalUserId, hospitalId }, work) {
+// commit: keep the work (e.g. hospital_record_donor_donation) so the test can read it back as owner.
+async function withHospitalContext(client, { hospitalUserId, hospitalId, commit = false }, work) {
   await client.query('BEGIN');
   await client.query('SET LOCAL ROLE raktasetu_rls');
   await client.query("SELECT set_config('app.user_id',$1,true)", [hospitalUserId]);
@@ -15,7 +16,7 @@ async function withHospitalContext(client, { hospitalUserId, hospitalId }, work)
   try {
     return await work();
   } finally {
-    await client.query('ROLLBACK');
+    await client.query(commit ? 'COMMIT' : 'ROLLBACK');
   }
 }
 
@@ -67,10 +68,12 @@ test('hospital donor visibility under RLS', { skip: !hasTestDatabase }, async ()
         'SELECT id, blood_group, latitude, longitude FROM hospital_visible_on_call_donors($1)',
         [['O+', 'O-']],
       );
-      assert.equal(visible.rowCount, 1);
-      assert.equal(visible.rows[0].id, donorId);
-      assert.equal(visible.rows[0].blood_group, 'O+');
-      assert.equal(Object.prototype.hasOwnProperty.call(visible.rows[0], 'email'), false);
+      // The DB may hold other seeded donors; assert only on this test's two donors.
+      const mine = visible.rows.filter((row) => row.id === donorId || row.id === otherDonorId);
+      assert.equal(mine.length, 1, 'only the on-call, compatible donor is visible');
+      assert.equal(mine[0].id, donorId);
+      assert.equal(mine[0].blood_group, 'O+');
+      assert.equal(Object.prototype.hasOwnProperty.call(mine[0], 'email'), false);
 
       const bloodGroup = await client.query(
         'SELECT hospital_donor_blood_group($1) AS blood_group',
@@ -104,7 +107,7 @@ test('hospital donor visibility under RLS', { skip: !hasTestDatabase }, async ()
     );
 
     await client.query('UPDATE users SET sex = $1 WHERE id = $2', ['male', donorId]);
-    await withHospitalContext(client, { hospitalUserId, hospitalId }, async () => {
+    await withHospitalContext(client, { hospitalUserId, hospitalId, commit: true }, async () => {
       await client.query('SELECT hospital_record_donor_donation($1)', [donorId]);
     });
     const maleEligible = await client.query(
@@ -118,7 +121,7 @@ test('hospital donor visibility under RLS', { skip: !hasTestDatabase }, async ()
       'UPDATE users SET sex = $1, last_donation_date = NULL, next_eligible_date = NULL WHERE id = $2',
       ['female', donorId],
     );
-    await withHospitalContext(client, { hospitalUserId, hospitalId }, async () => {
+    await withHospitalContext(client, { hospitalUserId, hospitalId, commit: true }, async () => {
       await client.query('SELECT hospital_record_donor_donation($1)', [donorId]);
     });
     const femaleEligible = await client.query(

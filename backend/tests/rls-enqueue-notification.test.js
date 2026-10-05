@@ -66,6 +66,8 @@ test('donor can enqueue hospital notification via helper under RLS', { skip: !ha
     await client.query('COMMIT');
 
     await withDonorContext(client, { donorId }, async () => {
+      // The expected RLS failure aborts the transaction; roll back to here before continuing.
+      await client.query('SAVEPOINT direct_insert');
       await assert.rejects(
         () => client.query(
           `INSERT INTO notifications (id,user_id,type,title,body,data,is_read,created_at)
@@ -74,6 +76,7 @@ test('donor can enqueue hospital notification via helper under RLS', { skip: !ha
         ),
         /row-level security/i,
       );
+      await client.query('ROLLBACK TO SAVEPOINT direct_insert');
 
       const enqueued = await client.query(
         `SELECT enqueue_notification($1,'donor_response','t','b',$2::jsonb) AS id`,
