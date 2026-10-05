@@ -2,7 +2,7 @@
 
 > **Status:** Active operational reference
 >
-> **Last reviewed:** 2026-08-11 (Asia/Kolkata)
+> **Last reviewed:** 2026-10-04 (Asia/Kolkata); previous review 2026-08-11
 >
 > **Review scope:** Git/GitHub state, release metadata, documentation, comments, and tracked debt. No runtime behavior.
 
@@ -12,18 +12,21 @@
 |-------|--------|
 | Canonical repository | `Chandrashekhar-Hegde/raktasetu-app` |
 | Default/current branch | `main` |
-| Reviewed commit | `5687e810382be470be10805a161942490afa848c` |
-| Remote comparison | `0` ahead / `0` behind `origin/main` after `git fetch origin --prune` |
-| Application version | `2.0.13` in frontend, backend, health response, and changelog |
+| Reviewed commit | `341484a24f65efc871ac5fa3774db2888f9d1c47` |
+| Remote comparison | `0` ahead / `0` behind `origin/main` after `git fetch origin --prune`; worktree clean |
+| Application version | `2.0.13` in frontend, backend, health response, and changelog; Neon-quota handling and the cron socket-loss fix sit under `Unreleased` |
 | Root package version | `1.0.0`; private workspace metadata, not the shipped application version |
-| Latest relevant CI | Backend CI, Frontend CI, and Migrate and Deploy are green; the reviewed head is docs-only and is outside workflow path filters |
-| Release tags at review start | None |
-| Published during review | Annotated tag `v2.0.13` → `5687e810382be470be10805a161942490afa848c` |
-| Production check | Railway `/api/health` returned HTTP 200, `healthy`, version `2.0.13` on 2026-08-11 |
-| Custom domain check | `raktasetu.in` still served a registrar parking lander on 2026-08-11; cutover remains pending |
+| Latest relevant CI | Backend CI, Frontend CI, and Migrate and Deploy green on `341484a2` and `7968d19d` (2026-10-04) |
+| CI failures since last review | Migrate and Deploy on `73306091` (2026-08-26) failed at "Apply database migrations" with Neon compute quota exceeded (`53000`); later runs are green |
+| Release tags | `v2.0.13` → `5687e810` (unchanged); no new release tagged |
+| Open pull requests | None |
+| Production check | Railway `/api/health` and `/api/health/ready` returned HTTP 200, version `2.0.13` on 2026-10-04; `raktasetu`, `raktasetu-escalation`, and `raktasetu-retention` deployments SUCCESS |
+| Custom domain check | **`raktasetu.in` returns NXDOMAIN on 2026-10-04** (no A/NS records via 1.1.1.1 and 8.8.8.8); WHOIS registry expiry `2026-08-12` (GoDaddy). Renew/recover before any cutover |
 | Open tracked debt | [Issue #1: read-only transactions for pure GET paths](https://github.com/Chandrashekhar-Hegde/raktasetu-app/issues/1) |
 
 The local `feat/user-ready-today` branch points at `e190efb0`, which is already an ancestor of `main`. It has no matching remote branch. Keep or delete it as a local cleanup choice; it is not unmerged work.
+
+Remote `cursor/neon-quota-ready-ed36` is fully merged into `main` (PR #2) and can be deleted. Remote `gh-pages` last changed 2026-07-08 (`ff4ff049`, v1.0.3) and is not part of the current deploy path.
 
 ## Documentation status tags
 

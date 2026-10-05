@@ -1,8 +1,8 @@
 # Domain cutover: `raktasetu.in` → Railway
 
-> **Status:** Active, cutover pending
+> **Status:** Active, cutover pending — **blocked: domain registration lapsed**
 >
-> **Last externally verified:** 2026-08-11 — `https://raktasetu.in/` served a registrar parking lander; the Railway production health endpoint returned HTTP 200 with version `2.0.13`.
+> **Last externally verified:** 2026-10-04 — `raktasetu.in` returns NXDOMAIN (WHOIS registry expiry 2026-08-12, GoDaddy); renew or recover it before any step below. The Railway production health endpoint returned HTTP 200 with version `2.0.13`. (2026-08-11: domain served a registrar parking lander.)
 
 Prepare the codebase first (this checklist). **Do not** change DNS or set `CANONICAL_ORIGIN` on Railway until you are ready to cut over.
 

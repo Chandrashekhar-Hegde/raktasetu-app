@@ -24,6 +24,7 @@ All notable changes to RaktaSetu are documented in this file.
 - Added a documentation issue template and linked the database read-only transaction TODO to GitHub issue #1.
 - Clarified that the base schema snapshot requires all later migrations and that security audit logging is a technical control, not a compliance claim.
 - Recorded the live Railway health/version check, pending parked-domain state, and published `v2.0.13` tag.
+- Refreshed the repository-health snapshot (2026-10-04) and flagged that `raktasetu.in` no longer resolves (registration expired 2026-08-12).
 
 ## [2.0.13] — 2026-07-21
 
