@@ -59,7 +59,8 @@ jobs:
         run: |
           npm test 2>&1 | tee test.log
           # A skipped DB test is how RLS went untested before; fail loudly instead.
-          grep -q '^ℹ skipped 0$' test.log || (echo "::error::Tests were skipped; is TEST_DATABASE_URL wired?" && exit 1)
+          # TAP ("# skipped 0") in CI, spec ("ℹ skipped 0") in a terminal.
+          grep -qE '^(#|ℹ) skipped 0$' test.log || (echo "::error::Tests were skipped; is TEST_DATABASE_URL wired?" && exit 1)
 
       - name: Check syntax
         run: |

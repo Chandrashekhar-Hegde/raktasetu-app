@@ -122,10 +122,18 @@ test('handleMaintenanceJobFailure rethrows non-quota errors', () => {
 
 test('POST /api/auth/login returns 503 not LOGIN_FAILED when the database is unreachable', async () => {
   if (process.env.DATABASE_URL) return;
-  const response = await request(createApp({ env: { NODE_ENV: 'test', SERVE_FRONTEND: 'false' } }))
-    .post('/api/auth/login')
-    .send({ email: 'probe@example.com', password: 'not-a-real-password' })
-    .expect('Content-Type', /json/);
+  // pg falls back to localhost:5432, which is a real database in CI; force a closed port instead.
+  const savedPort = process.env.PGPORT;
+  process.env.PGPORT = '1';
+  let response;
+  try {
+    response = await request(createApp({ env: { NODE_ENV: 'test', SERVE_FRONTEND: 'false' } }))
+      .post('/api/auth/login')
+      .send({ email: 'probe@example.com', password: 'not-a-real-password' })
+      .expect('Content-Type', /json/);
+  } finally {
+    if (savedPort === undefined) delete process.env.PGPORT; else process.env.PGPORT = savedPort;
+  }
 
   assert.equal(response.status, 503);
   assert.equal(response.body.success, false);
