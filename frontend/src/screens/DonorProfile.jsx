@@ -4,15 +4,12 @@ import { ShieldCheck, Clock, Languages, Bell, ArrowRight, History } from 'lucide
 import { T } from '../theme.js';
 import Card from '../components/Card.jsx';
 import BottomNav from '../components/BottomNav.jsx';
-import api from '../api/client.js';
+import api, { errMsg } from '../api/client.js';
 import { t } from '../i18n.js';
 import { useAuth } from '../hooks/useAuth.js';
-import {
-  enablePushNotifications,
-  showLocalNotification,
-  testServerPush,
-  notificationsSupported,
-} from '../lib/notifications.js';
+import { enablePushNotifications, notificationsSupported } from '../lib/notifications.js';
+import LanguageToggle from '../components/LanguageToggle.jsx';
+import LocationPrompt from '../components/LocationPrompt.jsx';
 
 const body = "'Public Sans', 'Segoe UI', system-ui, sans-serif";
 const display = "'Anek Latin', 'Segoe UI', system-ui, sans-serif";
@@ -45,13 +42,23 @@ export default function DonorProfile() {
     }
   };
 
+  const [radiusMsg, setRadiusMsg] = useState('');
   const updateRadius = async (r) => {
+    const previous = radius;
     setRadius(r);
+    setRadiusMsg('');
     try {
       await api.patch('/donor/profile', { ping_radius_km: r });
-    } catch {
-      // ignore
+      updateUser({ ping_radius_km: r });
+    } catch (err) {
+      setRadius(previous); // never show a radius the server didn't save
+      setRadiusMsg(errMsg(err, t('profile.radiusFailed')));
     }
+  };
+
+  const saveLocation = async (coords) => {
+    await api.patch('/donor/profile', coords);
+    updateUser(coords);
   };
 
   const name = user?.name || 'Donor';
@@ -80,10 +87,10 @@ export default function DonorProfile() {
         <ShieldCheck size={17} color={verified ? T.leaf : T.faint} />
         <div>
           <p style={{ fontFamily: display, fontWeight: 700, fontSize: 13.5, margin: 0, color: T.ink }}>
-            {verified ? 'Contact verified' : 'Contact verification pending'}
+            {verified ? t('profile.verifiedTitle') : t('profile.unverifiedTitle')}
           </p>
           <p style={{ fontFamily: body, fontSize: 12, color: T.faint, margin: '2px 0 0' }}>
-            {verified ? 'Verified contact is on file' : 'This MVP does not yet offer automated phone verification'}
+            {verified ? t('profile.verifiedBody') : t('profile.unverifiedBody')}
           </p>
         </div>
       </Card>
@@ -122,7 +129,7 @@ export default function DonorProfile() {
                   updateUser(response.data?.user || {});
                   setProfileMsg('Date of birth saved.');
                 } catch (requestError) {
-                  setProfileMsg(requestError.response?.data?.error?.message || 'Could not save date of birth.');
+                  setProfileMsg(errMsg(requestError, 'Could not save date of birth.'));
                 }
               }}>Save</button>
             </div>
@@ -157,7 +164,7 @@ export default function DonorProfile() {
                   updateUser(response.data?.user || {});
                   setProfileMsg('Sex saved for NBTC eligibility.');
                 } catch (requestError) {
-                  setProfileMsg(requestError.response?.data?.error?.message || 'Could not save sex.');
+                  setProfileMsg(errMsg(requestError, 'Could not save sex.'));
                 }
               }}>Save</button>
             </div>
@@ -184,20 +191,27 @@ export default function DonorProfile() {
       </Card>
 
       <Card style={{ marginTop: 10, padding: 13, display: 'flex', gap: 12, alignItems: 'center' }}>
-        <Languages size={17} color={T.mut} />
-        <div>
-          <p style={{ fontFamily: display, fontWeight: 700, fontSize: 13.5, margin: 0, color: T.ink }}>Language</p>
-          <p style={{ fontFamily: body, fontSize: 12, color: T.faint, margin: '2px 0 0' }}>English · ಕನ್ನಡ available</p>
+        <Languages size={17} color={T.mut} aria-hidden="true" />
+        <div style={{ flex: 1 }}>
+          <p style={{ fontFamily: display, fontWeight: 700, fontSize: 13.5, margin: 0, color: T.ink }}>{t('profile.language')}</p>
+          <p style={{ fontFamily: body, fontSize: 12, color: T.mut, margin: '2px 0 0' }}>English · ಕನ್ನಡ</p>
         </div>
+        <LanguageToggle />
+      </Card>
+
+      <Card style={{ marginTop: 10, padding: 13 }}>
+        <p style={{ fontFamily: display, fontWeight: 700, fontSize: 13.5, margin: '0 0 4px', color: T.ink }}>{t('profile.location')}</p>
+        <p style={{ fontFamily: body, fontSize: 12, color: T.mut, margin: '0 0 10px' }}>{t('location.why')}</p>
+        <LocationPrompt labelKey={user?.latitude != null ? 'profile.updateLocation' : 'location.useMine'} onCoords={saveLocation} />
       </Card>
 
       <Card style={{ marginTop: 10, padding: 13 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10 }}>
           <Bell size={17} color={T.oxblood} />
           <div>
-            <p style={{ fontFamily: display, fontWeight: 700, fontSize: 13.5, margin: 0, color: T.ink }}>Notifications</p>
-            <p style={{ fontFamily: body, fontSize: 12, color: T.faint, margin: '2px 0 0' }}>
-              Local alerts always; push when VAPID is configured
+            <p style={{ fontFamily: display, fontWeight: 700, fontSize: 13.5, margin: 0, color: T.ink }}>{t('profile.notifications')}</p>
+            <p style={{ fontFamily: body, fontSize: 12, color: T.mut, margin: '2px 0 0' }}>
+              {t('profile.notificationsBody')}
             </p>
           </div>
         </div>
@@ -210,72 +224,28 @@ export default function DonorProfile() {
                 setNotifBusy(true);
                 setNotifMsg('');
                 try {
-                  await showLocalNotification('RaktaSetu', 'Local notification works. You can receive alerts on this device.');
-                  setNotifMsg('Local notification sent.');
-                } catch (e) {
-                  setNotifMsg(e.message || 'Failed');
-                } finally {
-                  setNotifBusy(false);
-                }
-              }}
-              style={{
-                fontFamily: display, fontWeight: 700, fontSize: 12.5, padding: '10px 0', borderRadius: 10,
-                background: T.card, color: T.ink, border: `1px solid ${T.line}`, cursor: 'pointer',
-              }}
-            >
-              Test local notification
-            </button>
-            <button
-              type="button"
-              disabled={notifBusy}
-              onClick={async () => {
-                setNotifBusy(true);
-                setNotifMsg('');
-                try {
                   await enablePushNotifications();
-                  setNotifMsg('Push subscription saved.');
+                  setNotifMsg(t('profile.pushOn'));
                 } catch (e) {
-                  setNotifMsg(e.response?.data?.error || e.message || 'Push unavailable');
+                  setNotifMsg(errMsg(e, t('profile.pushFailed')));
                 } finally {
                   setNotifBusy(false);
                 }
               }}
               style={{
-                fontFamily: display, fontWeight: 700, fontSize: 12.5, padding: '10px 0', borderRadius: 10,
+                fontFamily: display, fontWeight: 700, fontSize: 14, minHeight: 44, borderRadius: 10,
                 background: T.oxblood, color: '#fff', border: 'none', cursor: 'pointer',
               }}
             >
-              Enable push notifications
-            </button>
-            <button
-              type="button"
-              disabled={notifBusy}
-              onClick={async () => {
-                setNotifBusy(true);
-                setNotifMsg('');
-                try {
-                  await testServerPush('Server push test from RaktaSetu');
-                  setNotifMsg('Server push sent (check OS notification).');
-                } catch (e) {
-                  setNotifMsg(e.response?.data?.error || e.message || 'Server push unavailable');
-                } finally {
-                  setNotifBusy(false);
-                }
-              }}
-              style={{
-                fontFamily: display, fontWeight: 700, fontSize: 12.5, padding: '10px 0', borderRadius: 10,
-                background: T.card, color: T.mut, border: `1px solid ${T.line}`, cursor: 'pointer',
-              }}
-            >
-              Test server push
+              {t('profile.enablePush')}
             </button>
             {notifMsg && (
-              <p style={{ fontFamily: body, fontSize: 12, color: T.mut, margin: 0 }}>{notifMsg}</p>
+              <p role="status" style={{ fontFamily: body, fontSize: 13, color: T.mut, margin: 0 }}>{notifMsg}</p>
             )}
           </div>
         ) : (
-          <p style={{ fontFamily: body, fontSize: 12, color: T.faint, margin: 0 }}>
-            This browser does not support notifications.
+          <p style={{ fontFamily: body, fontSize: 13, color: T.mut, margin: 0 }}>
+            {t('profile.pushUnsupported')}
           </p>
         )}
       </Card>
@@ -284,19 +254,20 @@ export default function DonorProfile() {
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10 }}>
           <Bell size={17} color={T.mut} />
           <div>
-            <p style={{ fontFamily: display, fontWeight: 700, fontSize: 13.5, margin: 0, color: T.ink }}>Ping radius</p>
-            <p style={{ fontFamily: body, fontSize: 12, color: T.faint, margin: '2px 0 0' }}>Critical requests may reach farther</p>
+            <p style={{ fontFamily: display, fontWeight: 700, fontSize: 13.5, margin: 0, color: T.ink }}>{t('profile.radius')}</p>
+            <p style={{ fontFamily: body, fontSize: 12, color: T.faint, margin: '2px 0 0' }}>{t('profile.radiusBody')}</p>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          {[3, 5, 10].map((r) => (
-            <button key={r} onClick={() => updateRadius(r)} style={{
-              flex: 1, fontFamily: display, fontWeight: 700, fontSize: 12.5, padding: '9px 0', borderRadius: 10,
+          {[5, 10, 15, 25].map((r) => (
+            <button key={r} type="button" aria-pressed={radius === r} onClick={() => updateRadius(r)} style={{
+              flex: 1, fontFamily: display, fontWeight: 700, fontSize: 13, minHeight: 44, borderRadius: 10,
               background: radius === r ? T.oxblood : T.card, color: radius === r ? '#fff' : T.mut,
               border: `1px solid ${radius === r ? T.oxbloodDark : T.line}`, cursor: 'pointer',
             }}>{r} km</button>
           ))}
         </div>
+        {radiusMsg && <p role="alert" style={{ fontFamily: body, fontSize: 13, color: T.arterial, margin: '8px 0 0' }}>{radiusMsg}</p>}
       </Card>
 
       <Card style={{ marginTop: 10, padding: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => navigate('/history')}>

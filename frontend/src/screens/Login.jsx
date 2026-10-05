@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { errMsg } from '../api/client.js';
 import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import { Phone, Lock, Droplet } from 'lucide-react';
 import { T } from '../theme.js';
@@ -87,7 +88,7 @@ export default function Login() {
               } else if (code === 'COMPUTE_QUOTA_EXCEEDED' || code === 'DATABASE_UNAVAILABLE') {
                 setError(t('login.unavailable'));
               } else {
-                setError(_err.response?.data?.error?.message || _err.message || 'Google Sign-In failed');
+                setError(errMsg(_err, 'Google Sign-In failed'));
               }
             } finally {
               setLoading(false);
@@ -146,7 +147,7 @@ export default function Login() {
         setError(t('login.unavailable'));
         return;
       }
-      setError(_err.response?.data?.error?.message || _err.response?.data?.error || t('login.failed'));
+      setError(errMsg(_err, t('login.failed')));
     } finally {
       setLoading(false);
     }

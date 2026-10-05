@@ -8,17 +8,20 @@ vi.mock('../api/client.js', () => ({
     get: vi.fn(async () => ({
       data: {
         data: {
-          requests: [{
+          // GET /donor/responses/:requestId
+          request: {
             id: 'req-1',
             ref_code: 'RS-AB12CD34',
             hospital_name: 'City Hospital',
-            address: 'Main Rd',
-          }],
+            hospital_address: 'Main Rd',
+            response_status: 'accepted',
+          },
         },
       },
     })),
     post: vi.fn(),
   },
+  errMsg: (_err, fallback) => fallback,
 }));
 
 vi.mock('../components/BottomNav.jsx', () => ({
@@ -44,5 +47,6 @@ describe('DonorOnTheWay QR contract', () => {
     });
     expect(screen.getByTestId('verify-ref-text')).toHaveTextContent('RS-AB12CD34');
     expect(screen.queryByText(/RS-DONOR-/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Main Rd/)).toBeInTheDocument(); // hospital_address, not the old `address` field
   });
 });

@@ -3,15 +3,15 @@ export function buildHelmetOptions(isProduction = false) {
     defaultSrc: ["'self'"],
     baseUri: ["'self'"],
     connectSrc: ["'self'", 'https://accounts.google.com'],
-    fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+    fontSrc: ["'self'", 'data:'],
     formAction: ["'self'"],
     frameAncestors: ["'none'"],
     frameSrc: ["'self'", 'https://accounts.google.com'],
-    imgSrc: ["'self'", 'data:', 'blob:', 'https://*.googleusercontent.com'],
+    imgSrc: ["'self'", 'data:', 'blob:', 'https://*.googleusercontent.com', 'https://*.tile.openstreetmap.org'],
     manifestSrc: ["'self'"],
     objectSrc: ["'none'"],
     scriptSrc: ["'self'", "'unsafe-inline'", 'https://accounts.google.com'],
-    styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://accounts.google.com'],
+    styleSrc: ["'self'", "'unsafe-inline'", 'https://accounts.google.com'],
     workerSrc: ["'self'", 'blob:'],
   };
 

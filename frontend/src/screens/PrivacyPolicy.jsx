@@ -1,4 +1,5 @@
 import React from 'react';
+import { CONTACT } from '../config.js';
 import { Link } from 'react-router-dom';
 import PublicShell from '../components/PublicShell.jsx';
 import usePageMeta from '../hooks/usePageMeta.js';
@@ -55,7 +56,7 @@ export default function PrivacyPolicy() {
         <PolicySection title="2. Information we collect">
           <ul>
             <li><strong>Account details:</strong> name, email address, phone number, password hash, role, city, state, and account timestamps.</li>
-            <li><strong>Donor details:</strong> blood group, date of birth supplied during registration, availability, approximate location, preferred request radius, eligibility dates, and verification state.</li>
+            <li><strong>Donor details:</strong> blood group, date of birth, sex (used only to apply the NBTC donation interval of 90 days for men and 120 days for women), availability, approximate location (rounded to about 100 metres, captured only when you tap the location button), preferred request radius, eligibility dates, and verification state.</li>
             <li><strong>Hospital details:</strong> organization name, address, license information when supplied, location, contact details, and verification state.</li>
             <li><strong>Coordination records:</strong> blood requests, donor responses, arrival states, donation records, credits, and related timestamps.</li>
             <li><strong>Device and security data:</strong> IP address, user agent, audit events, authentication identifiers, and push notification subscription information.</li>
@@ -92,6 +93,8 @@ export default function PrivacyPolicy() {
             <li><strong>Participating hospitals:</strong> receive information needed to review and coordinate an accepted request, subject to role-based access.</li>
             <li><strong>Infrastructure providers:</strong> Railway hosts the service and Neon provides PostgreSQL database infrastructure. Their processing locations depend on the configured service regions.</li>
             <li><strong>Google:</strong> provides Identity Services only on the donor sign-in page when Google sign-in is configured and loaded.</li>
+            <li><strong>OpenStreetMap:</strong> when you open the map view of nearby requests, your browser loads map images from OpenStreetMap's tile servers, which receive your IP address.</li>
+            <li><strong>Browser push services:</strong> if you turn on alerts, notifications are delivered through your browser vendor's push service (for example Google for Chrome). Alert text contains the blood group and hospital name, never your personal details.</li>
             <li><strong>Authorities or safety recipients:</strong> information may be disclosed when the operator determines that law requires it or a valid emergency process applies.</li>
           </ul>
           <p>
@@ -167,7 +170,7 @@ export default function PrivacyPolicy() {
           <p>
             Signed-in users can use the <Link to="/data-rights">Data Rights Center</Link> to
             download an account export or request account deletion. Requests can also be
-            sent to <a href="mailto:privacy@raktasetu.org">privacy@raktasetu.org</a>.
+            sent to <a href={`mailto:${CONTACT.privacy}`}>{CONTACT.privacy}</a>.
           </p>
         </PolicySection>
 
@@ -187,8 +190,8 @@ export default function PrivacyPolicy() {
             the policy version for new registrations.
           </p>
           <p>
-            Privacy and data-rights requests: <a href="mailto:privacy@raktasetu.org">privacy@raktasetu.org</a><br />
-            General support: <a href="mailto:support@raktasetu.org">support@raktasetu.org</a>
+            Privacy and data-rights requests: <a href={`mailto:${CONTACT.privacy}`}>{CONTACT.privacy}</a><br />
+            General support: <a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>
           </p>
           <p>
             These inboxes must be actively monitored and connected to an approved request

@@ -3,8 +3,10 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, HashRouter } from 'react-router-dom'
 import { registerSW } from 'virtual:pwa-register'
 import App from './App.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { AuthProvider } from './hooks/useAuth.js'
 import { isNativePlatform } from './lib/platform.js'
+import './fonts.css'
 import './index.css'
 import './public.css'
 
@@ -32,11 +34,13 @@ try {
   }
   ReactDOM.createRoot(root).render(
     <React.StrictMode>
-      <Router>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </Router>
+      <ErrorBoundary>
+        <Router>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </Router>
+      </ErrorBoundary>
     </React.StrictMode>,
   )
 } catch (_err) {

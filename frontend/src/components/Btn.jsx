@@ -3,7 +3,7 @@ import { T } from '../theme.js';
 
 const display = "'Anek Latin', 'Segoe UI', system-ui, sans-serif";
 
-export default function Btn({ children, kind = 'primary', onClick, full, small, dark, disabled }) {
+export default function Btn({ children, kind = 'primary', onClick, full, small, dark, disabled, ...rest }) {
   const styles = {
     primary: { background: T.oxblood, color: '#fff', border: '1px solid ' + T.oxbloodDark },
     critical: { background: T.arterial, color: '#fff', border: '1px solid #A50D26' },
@@ -16,6 +16,7 @@ export default function Btn({ children, kind = 'primary', onClick, full, small, 
   }[kind];
   return (
     <button
+      {...rest}
       onClick={onClick}
       disabled={disabled}
       style={{

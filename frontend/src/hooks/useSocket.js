@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { SOCKET_URL } from '../config.js';
+import { refreshSession } from '../api/client.js';
 import { getAccessToken } from '../lib/accessToken.js';
 import { isNativePlatform } from '../lib/platform.js';
 
@@ -10,14 +11,21 @@ export function useSocket(onEvent) {
   handlersRef.current = onEvent;
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token) return undefined;
+    if (!getAccessToken()) return undefined;
 
     const socket = io(SOCKET_URL, {
-      auth: { token },
+      // Read the token on every (re)connect: access tokens rotate every ~30 min.
+      auth: (cb) => cb({ token: getAccessToken() }),
       transports: ['websocket'],
     });
     socketRef.current = socket;
+
+    // The server disconnects when the token expires, and socket.io never auto-reconnects
+    // after a server-side disconnect: refresh the session, then reconnect with the new token.
+    socket.on('disconnect', (reason) => {
+      if (reason !== 'io server disconnect') return;
+      refreshSession().then(() => socket.connect(), () => {});
+    });
 
     const eventNames = Object.keys(handlersRef.current || {});
     const bound = {};

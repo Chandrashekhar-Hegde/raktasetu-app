@@ -5,7 +5,7 @@ import { T } from '../theme.js';
 import Card from '../components/Card.jsx';
 import Btn from '../components/Btn.jsx';
 import Chip from '../components/Chip.jsx';
-import api from '../api/client.js';
+import api, { errMsg } from '../api/client.js';
 import { Html5Qrcode } from 'html5-qrcode';
 import { t } from '../i18n.js';
 
@@ -51,7 +51,7 @@ export default function ConsoleVerify() {
       if (payload.donor) setDonor(payload.donor);
       else setError(t('console.donorNotFound'));
     } catch (err) {
-      setError(err.response?.data?.error?.message || err.response?.data?.error || t('console.findFailed'));
+      setError(errMsg(err, t('console.findFailed')));
     } finally {
       setLoading(false);
     }
@@ -68,7 +68,7 @@ export default function ConsoleVerify() {
       });
       setDone(true);
     } catch (err) {
-      setError(err.response?.data?.error?.message || err.response?.data?.error || t('console.verifyFailed'));
+      setError(errMsg(err, t('console.verifyFailed')));
     } finally {
       setLoading(false);
     }
@@ -88,7 +88,7 @@ export default function ConsoleVerify() {
       setRedemption(payload.redemption);
       setDone(true);
     } catch (err) {
-      setError(err.response?.data?.error?.message || err.response?.data?.error || t('console.redeemFailed'));
+      setError(errMsg(err, t('console.redeemFailed')));
     } finally {
       setLoading(false);
     }
@@ -163,11 +163,12 @@ export default function ConsoleVerify() {
       </Card>
 
       <div style={{ marginTop: 16 }}>
-        <p style={{ fontFamily: body, fontSize: 11, color: T.consoleMut, textTransform: 'uppercase', letterSpacing: '.07em', margin: '0 0 8px' }}>
+        <label htmlFor="verify-code" style={{ display: 'block', fontFamily: body, fontSize: 12, color: T.consoleMut, textTransform: 'uppercase', letterSpacing: '.07em', margin: '0 0 8px' }}>
           {mode === 'redeem' ? t('console.enterRedeemCode') : t('console.enterRefCode')}
-        </p>
+        </label>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
+            id="verify-code"
             type="text"
             placeholder={mode === 'redeem' ? 'RSC-XXXXXXXX' : 'e.g. RS-4821'}
             value={refCode}
@@ -178,13 +179,13 @@ export default function ConsoleVerify() {
               fontFamily: body, fontSize: 15, background: T.consoleCard, color: '#F0EEE9',
             }}
           />
-          <Btn kind="ghost" dark small onClick={() => (mode === 'redeem' ? redeemCredits() : searchDonor())} disabled={loading}>
-            <Search size={14} />
+          <Btn kind="ghost" dark onClick={() => (mode === 'redeem' ? redeemCredits() : searchDonor())} disabled={loading} aria-label={t('console.searchCode')}>
+            <Search size={16} aria-hidden="true" />
           </Btn>
         </div>
       </div>
 
-      {error && <p style={{ fontFamily: body, fontSize: 12, color: '#E4506B', marginTop: 12 }}>{error}</p>}
+      {error && <p role="alert" style={{ fontFamily: body, fontSize: 13, color: '#F2879A', marginTop: 12 }}>{error}</p>}
 
       {mode === 'donation' && donor && (
         <Card dark style={{ marginTop: 16 }}>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { CONTACT } from '../config.js';
 import { Link } from 'react-router-dom';
 import PublicShell from '../components/PublicShell.jsx';
 import usePageMeta from '../hooks/usePageMeta.js';
@@ -137,7 +138,7 @@ export default function TermsOfService() {
         <Section title="11. Contact">
           <p>
             Questions about these terms can be sent to
-            {' '}<a href="mailto:support@raktasetu.org">support@raktasetu.org</a>.
+            {' '}<a href={`mailto:${CONTACT.support}`}>{CONTACT.support}</a>.
           </p>
         </Section>
       </article>

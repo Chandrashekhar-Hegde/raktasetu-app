@@ -1,4 +1,5 @@
 import React from 'react';
+import { CONTACT } from '../config.js';
 import { Link } from 'react-router-dom';
 
 function Brand() {
@@ -86,7 +87,7 @@ export function PublicFooter() {
             <div className="public-footer__links">
               <Link to="/login?role=hospital">Hospital sign in</Link>
               <Link to="/register?role=hospital">Register a hospital</Link>
-              <a href="mailto:support@raktasetu.org">Contact support</a>
+              <a href={`mailto:${CONTACT.support}`}>Contact support</a>
             </div>
           </div>
         </div>

@@ -7,6 +7,7 @@ import Chip from '../components/Chip.jsx';
 import Card from '../components/Card.jsx';
 import BottomNav from '../components/BottomNav.jsx';
 import api from '../api/client.js';
+import LocationPrompt from '../components/LocationPrompt.jsx';
 import { useAuth } from '../hooks/useAuth.js';
 import { useSocket } from '../hooks/useSocket.js';
 import { getLang, t, toggleLang } from '../i18n.js';
@@ -22,7 +23,6 @@ export default function DonorHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toggleLoading, setToggleLoading] = useState(false);
-  const [lang, setLangState] = useState(getLang());
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
 
@@ -42,7 +42,13 @@ export default function DonorHome() {
 
   useEffect(() => {
     fetchDashboard();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- load once on mount
+
+  const saveLocation = async (coords) => {
+    await api.patch('/donor/profile', coords);
+    updateUser(coords);
+    await fetchDashboard();
+  };
 
   useSocket({
     blood_request: (payload) => {
@@ -76,7 +82,11 @@ export default function DonorHome() {
   const blood = user?.blood_group || 'Not set';
   const credits = dashboard?.credits ?? 0;
   const eligible = dashboard?.eligible ?? true;
-  const nextEligible = dashboard?.next_eligible_date;
+  const nextEligibleRaw = dashboard?.user_status?.next_eligible_date;
+  const nextEligible = nextEligibleRaw
+    ? new Date(nextEligibleRaw).toLocaleDateString(getLang() === 'kn' ? 'kn-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    : null;
+  const hasLocation = user?.latitude != null && user?.longitude != null;
   const radius = user?.ping_radius_km || 10;
   const requests = dashboard?.nearby_requests || [];
 
@@ -87,13 +97,14 @@ export default function DonorHome() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
             type="button"
-            onClick={() => setLangState(toggleLang())}
-            aria-label="Toggle language"
+            onClick={toggleLang}
+            aria-label={t('lang.toggle')}
+            style={{ background: 'none', border: 'none', padding: 0, minHeight: 44, cursor: 'pointer' }}
           >
-            <Chip tone="gold">{lang === 'en' ? t('home.langChip') : t('home.langChipActive')}</Chip>
+            <Chip tone="gold">{getLang() === 'en' ? t('home.langChip') : t('home.langChipActive')}</Chip>
           </button>
-          <button onClick={() => navigate('/requests')} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-            <Bell size={19} color={T.mut} />
+          <button type="button" onClick={() => navigate('/requests')} aria-label={t('home.openRequests')} style={{ background: 'none', border: 'none', cursor: 'pointer', minWidth: 44, minHeight: 44 }}>
+            <Bell size={19} color={T.mut} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -124,7 +135,7 @@ export default function DonorHome() {
           >
             <Droplet size={40} color={onCall ? '#fff' : T.oxblood} fill={onCall ? '#fff' : 'none'} strokeWidth={1.7} />
             <span style={{ fontFamily: display, fontWeight: 800, fontSize: 13, color: onCall ? '#fff' : T.ink, letterSpacing: '0.06em' }}>
-              {onCall ? 'ON CALL' : 'OFF'}
+              {onCall ? t('home.onCallChip') : t('home.offCallChip')}
             </span>
           </button>
         </div>
@@ -134,6 +145,14 @@ export default function DonorHome() {
             : t('home.offCallHint')}
         </p>
       </div>
+
+      {!hasLocation && (
+        <Card style={{ marginTop: 14, borderColor: T.arterial }}>
+          <h2 style={{ fontFamily: display, fontWeight: 800, fontSize: 16, margin: 0, color: T.ink }}>{t('location.homeTitle')}</h2>
+          <p style={{ fontFamily: body, fontSize: 13, color: T.mut, margin: '6px 0 12px' }}>{t('location.homeBody')}</p>
+          <LocationPrompt onCoords={saveLocation} />
+        </Card>
+      )}
 
       <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
         <Card style={{ flex: 1, padding: 12 }}>
@@ -155,7 +174,14 @@ export default function DonorHome() {
 
       {requests.length > 0 ? (
         requests.slice(0, 2).map((req) => (
-          <Card key={req.id} style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => navigate(`/alert/${req.id}`)}>
+          <Card
+            key={req.id}
+            role="link"
+            tabIndex={0}
+            onClick={() => navigate(`/alert/${req.id}`)}
+            onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/alert/${req.id}`); }}
+            style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+          >
             <div>
               <p style={{ fontFamily: display, fontWeight: 700, fontSize: 14.5, margin: 0, color: T.ink }}>
                 {t('home.unitsNeeded', { hospital: req.hospital_name, units: req.units_needed })}

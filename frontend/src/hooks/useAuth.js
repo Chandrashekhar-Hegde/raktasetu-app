@@ -1,6 +1,5 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useState } from 'react';
-import api, { refreshSession } from '../api/client.js';
-import { API_URL } from '../config.js';
+import api, { refreshSession, setSessionExpiredHandler } from '../api/client.js';
 import {
   clearSessionTokens,
   getAccessToken,
@@ -43,27 +42,23 @@ function useAuthState() {
       setLoading(false);
       return;
     }
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
     try {
-      const res = await fetch(`${API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: 'include',
-        signal: ctrl.signal,
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setUser(data.data?.user || data.user);
-    } catch {
-      clearSessionTokens();
+      const res = await api.get('/auth/me', { timeout: 8000 });
+      setUser(res.data.data?.user || res.data.user);
+    } catch (error) {
+      // Only a real auth rejection ends the session; a slow or offline network must not log users out.
+      if ([401, 403].includes(error.response?.status)) clearSessionTokens();
       setUser(null);
     } finally {
-      clearTimeout(timer);
       setLoading(false);
     }
   }, []);
 
   useEffect(() => { fetchUser(); }, [fetchUser]);
+  useEffect(() => {
+    setSessionExpiredHandler(() => setUser(null));
+    return () => setSessionExpiredHandler(() => {});
+  }, []);
 
   const login = async (identifier, password) => {
     const payload = identifier.includes('@')

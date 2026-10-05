@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Minus, Radio, AlertTriangle, Users, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { T, GIVERS, RARE, GROUPS } from '../theme.js';
 import Btn from '../components/Btn.jsx';
-import api from '../api/client.js';
+import api, { errMsg } from '../api/client.js';
 
 const body = "'Public Sans', 'Segoe UI', system-ui, sans-serif";
 const display = "'Anek Latin', 'Segoe UI', system-ui, sans-serif";
@@ -36,7 +36,7 @@ export default function ConsoleNewRequest() {
       setDonorsNotified(Number(payload.donors_notified || 0));
       setSent(true);
     } catch (_err) {
-      setError(_err.response?.data?.error || 'Failed to broadcast request');
+      setError(errMsg(_err, 'Failed to broadcast request'));
     } finally {
       setLoading(false);
     }

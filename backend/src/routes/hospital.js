@@ -12,6 +12,7 @@ import { publishToUser } from '../realtime/publisher.js';
 import {
   donationCompletionSchema,
   donorSearchQuerySchema,
+  hospitalLocationSchema,
   hospitalRequestQuerySchema,
   metricsRangeSchema,
   requestCreateSchema,
@@ -72,11 +73,15 @@ router.use(authenticate, requireActiveAccount, requireRole('hospital'), requireA
  */
 router.get('/dashboard', async (req, res) => {
   try {
-    const hospitalResult = await query('SELECT id FROM hospitals WHERE user_id = $1', [req.user.id]);
+    const hospitalResult = await query(
+      'SELECT id, latitude IS NOT NULL AND longitude IS NOT NULL AS location_set FROM hospitals WHERE user_id = $1',
+      [req.user.id],
+    );
     if (hospitalResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Hospital profile not found' });
     }
     const hospitalId = hospitalResult.rows[0].id;
+    const locationSet = hospitalResult.rows[0].location_set;
 
     // Active requests for this hospital
     const requestsResult = await query(
@@ -117,6 +122,7 @@ router.get('/dashboard', async (req, res) => {
       success: true,
       data: {
         hospital_id: hospitalId,
+        location_set: locationSet,
         stats: statsResult.rows[0],
         active_requests: requestsResult.rows,
         recent_donations: donationsResult.rows,
@@ -135,6 +141,22 @@ router.get('/dashboard', async (req, res) => {
  * POST /api/hospital/requests
  * Create a new blood request
  */
+/**
+ * PATCH /api/hospital/location
+ * Set the hospital's coordinates (needed before any donor can be matched).
+ */
+router.patch('/location', validate(hospitalLocationSchema), async (req, res) => {
+  const result = await query(
+    'UPDATE hospitals SET latitude = $1, longitude = $2, updated_at = NOW() WHERE user_id = $3 RETURNING id',
+    [req.body.latitude, req.body.longitude, req.user.id],
+  );
+  if (result.rowCount === 0) {
+    return res.status(404).json({ success: false, error: { code: 'HOSPITAL_NOT_FOUND', message: 'Hospital profile not found' } });
+  }
+  await logAudit({ userId: req.user.id, action: 'HOSPITAL_LOCATION_SET', resourceType: 'hospital', resourceId: result.rows[0].id, req });
+  return res.json({ success: true, data: { location_set: true } });
+});
+
 router.post('/requests', validate(requestCreateSchema), async (req, res) => {
   try {
     // zod (requestCreateSchema) already bounds every field.

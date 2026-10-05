@@ -55,6 +55,29 @@ async function refreshSession() {
   return session.token;
 }
 
+// Parallel 401s share one refresh: rotated refresh tokens are single-use.
+let refreshing = null;
+function refreshOnce() {
+  refreshing ??= refreshSession().finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+// AuthProvider registers this so an expired session clears React state and routes to /login.
+let onSessionExpired = () => {};
+export function setSessionExpiredHandler(handler) {
+  onSessionExpired = handler;
+}
+
+/** Human-readable message from an API error: the backend sends `error` as a string or {code, message}. */
+export function errMsg(err, fallback = 'Something went wrong. Please try again.') {
+  const error = err?.response?.data?.error;
+  if (typeof error === 'string') return error;
+  if (error?.issues?.length) return error.issues.map((issue) => issue.message).join('. ');
+  if (typeof error?.message === 'string') return error.message;
+  if (err?.code === 'ERR_NETWORK' || err?.code === 'ECONNABORTED') return 'Network problem. Check your connection and try again.';
+  return fallback;
+}
+
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
@@ -68,7 +91,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401 && canRefresh && original && !original._retried && !isAuthOperation) {
       original._retried = true;
       try {
-        const token = await refreshSession();
+        const token = await refreshOnce();
         original.headers.Authorization = `Bearer ${token}`;
         return api(original);
       } catch {
@@ -77,11 +100,11 @@ api.interceptors.response.use(
     }
     if (err.response?.status === 401 && !isAuthOperation) {
       clearSessionTokens();
-      window.location.hash = '#/login';
+      onSessionExpired();
     }
     return Promise.reject(err);
   },
 );
 
-export { refreshSession };
+export { refreshOnce as refreshSession };
 export default api;

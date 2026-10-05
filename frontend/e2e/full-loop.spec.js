@@ -36,7 +36,7 @@ async function openDonorAlert(donor) {
   const navigated = await donor.waitForURL(/\/alert\//, { timeout: 4000 }).then(() => true).catch(() => false);
   if (navigated) return;
 
-  await donor.getByRole('button', { name: /^Requests$/i }).click();
+  await donor.getByRole('link', { name: /^Requests$/i }).click(); // bottom nav items are links
   await expect(donor).toHaveURL(/\/requests/);
   const requestLink = donor.getByRole('link').filter({ hasText: /B\+/ }).first();
   await expect(requestLink).toBeVisible({ timeout: 15000 });
@@ -79,7 +79,7 @@ test('KLE demo full loop: request → accept → verify → credits (+ optional 
     await signIn(donor, { email: donorEmail, password: fixturePassword, hospital: false });
     await expect(donor).toHaveURL(/\/home/);
 
-    await donor.getByRole('button', { name: /toggle language/i }).click();
+    await donor.getByRole('button', { name: /switch language/i }).click();
     await expect(donor.getByText(/ಕನ್ನಡ/)).toBeVisible();
 
     await openDonorAlert(donor);

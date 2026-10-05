@@ -27,6 +27,13 @@ export function getLang() {
   return currentLang;
 }
 
+const listeners = new Set();
+/** For useSyncExternalStore: App re-renders the whole tree when the language changes. */
+export function subscribeLang(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export function setLang(lang) {
   currentLang = lang === 'kn' ? 'kn' : 'en';
   try {
@@ -35,6 +42,7 @@ export function setLang(lang) {
     // ignore
   }
   applyDocumentLang(currentLang);
+  listeners.forEach((listener) => listener());
   return currentLang;
 }
 

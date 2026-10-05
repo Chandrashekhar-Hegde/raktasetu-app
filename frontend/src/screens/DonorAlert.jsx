@@ -6,7 +6,7 @@ import Chip from '../components/Chip.jsx';
 import Card from '../components/Card.jsx';
 import Btn from '../components/Btn.jsx';
 import BottomNav from '../components/BottomNav.jsx';
-import api from '../api/client.js';
+import api, { errMsg } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { getLang, t } from '../i18n.js';
 
@@ -21,26 +21,18 @@ export default function DonorAlert() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [responding, setResponding] = useState(false);
-  const [, bump] = useState(getLang());
-  useEffect(() => { bump(getLang()); }, []);
 
   useEffect(() => {
-    fetchRequest();
+    api.get('/donor/requests')
+      .then(({ data: response }) => {
+        const payload = response.data || response;
+        const found = payload.requests?.find((r) => r.id === requestId);
+        if (found) setRequest(found);
+        else setError(t('alert.notFound'));
+      })
+      .catch(() => setError(t('alert.loadFailed')))
+      .finally(() => setLoading(false));
   }, [requestId]);
-
-  const fetchRequest = async () => {
-    try {
-      const { data: response } = await api.get(`/donor/requests`);
-      const payload = response.data || response;
-      const found = payload.requests?.find(r => r.id === requestId);
-      if (found) setRequest(found);
-      else setError(t('alert.notFound'));
-    } catch (_err) {
-      setError(t('alert.loadFailed'));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAccept = async () => {
     setResponding(true);
@@ -48,7 +40,7 @@ export default function DonorAlert() {
       await api.post(`/donor/respond/${requestId}`, { status: 'accepted' });
       navigate(`/on-the-way/${requestId}`);
     } catch (_err) {
-      setError(_err.response?.data?.error || 'Failed to accept request');
+      setError(errMsg(_err, t('alert.acceptFailed')));
     } finally {
       setResponding(false);
     }
@@ -60,17 +52,28 @@ export default function DonorAlert() {
       await api.post(`/donor/respond/${requestId}`, { status: 'declined' });
       navigate('/home');
     } catch (_err) {
-      setError(_err.response?.data?.error || 'Failed to decline request');
+      setError(errMsg(_err, t('alert.declineFailed')));
     } finally {
       setResponding(false);
     }
   };
 
   if (loading) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: body }}>{t('alert.loading')}</div>;
-  if (!request) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: body, color: T.mut }}>{t('alert.notFound')}</div>;
+  if (!request) {
+    // Reached from old push links too: always offer a way back instead of a dead end.
+    return (
+      <div style={{ padding: '40px 18px calc(90px + env(safe-area-inset-bottom))', maxWidth: 430, margin: '0 auto', textAlign: 'center', fontFamily: body }}>
+        <p style={{ color: T.mut, fontSize: 15 }}>{error || t('alert.notFound')}</p>
+        <Btn kind="ghost" full onClick={() => navigate('/requests')}>{t('alert.seeOpen')}</Btn>
+        <BottomNav />
+      </div>
+    );
+  }
 
-  const myGroup = user?.blood_group || 'Not set';
-  const compatible = (GIVERS[request.blood_group] || []).includes(myGroup);
+  const myGroup = user?.blood_group || t('alert.groupNotSet');
+  const compatible = (GIVERS[request.blood_group] || []).includes(user?.blood_group);
+  const nextEligible = user?.next_eligible_date ? new Date(user.next_eligible_date) : null;
+  const eligible = !nextEligible || nextEligible <= new Date();
 
   return (
     <div style={{ padding: '18px 18px calc(90px + env(safe-area-inset-bottom))', maxWidth: 430, margin: '0 auto' }}>
@@ -118,15 +121,20 @@ export default function DonorAlert() {
       </Card>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
-        <Btn kind="critical" full onClick={handleAccept} disabled={responding || !compatible}>
-          <Droplet size={16} /> {t('alert.accept')}
+        <Btn kind="critical" full onClick={handleAccept} disabled={responding || !compatible || !eligible}>
+          <Droplet size={16} aria-hidden="true" /> {t('alert.accept')}
         </Btn>
+        {!eligible && (
+          <p style={{ fontFamily: body, fontSize: 13, color: T.mut, margin: 0, textAlign: 'center' }}>
+            {t('alert.notEligibleUntil', { date: nextEligible.toLocaleDateString(getLang() === 'kn' ? 'kn-IN' : 'en-IN', { day: 'numeric', month: 'short' }) })}
+          </p>
+        )}
         <Btn kind="ghost" full onClick={handleDecline} disabled={responding}>{t('alert.decline')}</Btn>
       </div>
       <p style={{ fontFamily: body, fontSize: 11.5, color: T.faint, textAlign: 'center', marginTop: 12 }}>
         {t('alert.declineNote', { count: request.donors_pinged ?? '—' })}
       </p>
-      {error && <p style={{ fontFamily: body, fontSize: 12, color: T.arterial, textAlign: 'center', marginTop: 8 }}>{error}</p>}
+      {error && <p role="alert" style={{ fontFamily: body, fontSize: 13, color: T.arterial, textAlign: 'center', marginTop: 8 }}>{error}</p>}
       <BottomNav />
     </div>
   );
