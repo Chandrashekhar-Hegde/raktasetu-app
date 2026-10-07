@@ -13,7 +13,7 @@
 | Canonical repository | `Chandrashekhar-Hegde/raktasetu-app` |
 | Default/current branch | `main` |
 | Reviewed commit | `main` after PR #9 (this snapshot) |
-| Branch protection | `main` requires **lint-and-test**, **build**, **full-loop**; no force push or deletion; admin bypass kept for hotfixes |
+| Branch protection | `main` requires **lint-and-test**, **build**, **full-loop**; no force push or deletion; enforced for admins too (see docs/ops/ci-cd.md for the emergency switch) |
 | Deploy ordering | Railway "Wait for CI" on for all 3 services: deploys follow green checks and the migration |
 | Application version | `2.0.13`; sweep fixes (PRs #3–#8) sit under `Unreleased` |
 | Runtime | Node 22 (`.nvmrc`; Railway build shows `nodejs_22`); Express 5; react-router 7 |

@@ -76,6 +76,6 @@ The 5-minute escalation cron keeps Neon compute awake. Free plan is **100 CU-hou
 
 ## Branch protection
 
-`main` requires the status checks **lint-and-test** (Backend CI), **build** and **full-loop** (Frontend CI), and disallows force pushes and deletion. PR workflows have no path filter, so the required checks always report. Admins can still bypass in an emergency (`enforce_admins` off); use that only for hotfixes and follow up with a PR. Add "require 1 approving review" when a second maintainer joins.
+`main` requires the status checks **lint-and-test** (Backend CI), **build** and **full-loop** (Frontend CI), and disallows force pushes and deletion. PR workflows have no path filter, so the required checks always report. The rules apply to admins too (`enforce_admins` on): with bypass allowed, `gh pr merge` silently skipped pending checks, which is exactly what this protection is for (including AI agents using an owner's credentials). In a genuine emergency an owner can run `gh api -X DELETE repos/Chandrashekhar-Hegde/raktasetu-app/branches/main/protection/enforce_admins`, ship the fix, and re-enable it with `-X POST`. Add "require 1 approving review" when a second maintainer joins.
 
 See also [CONTRIBUTING.md](../../CONTRIBUTING.md) and [operational-readiness.md](../operational-readiness.md).
