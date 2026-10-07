@@ -2,7 +2,7 @@
 
 > **Status:** Active operational reference
 >
-> **Last reviewed:** 2026-10-07 (Asia/Kolkata), after the launch-readiness sweep; previous reviews 2026-10-04, 2026-08-11
+> **Last reviewed:** 2026-10-07 (Asia/Kolkata), after the launch-readiness sweep and dependency sweep; previous reviews 2026-10-04, 2026-08-11
 >
 > **Review scope:** Git/GitHub state, release metadata, documentation, comments, and tracked debt. No runtime behavior.
 
@@ -12,19 +12,19 @@
 |-------|--------|
 | Canonical repository | `Chandrashekhar-Hegde/raktasetu-app` |
 | Default/current branch | `main` |
-| Reviewed commit | `main` after PR #9 (this snapshot) |
+| Reviewed commit | `main` after PR #60 and this snapshot (2026-10-07, late) |
 | Branch protection | `main` requires **lint-and-test**, **build**, **full-loop**; no force push or deletion; enforced for admins too (see docs/ops/ci-cd.md for the emergency switch) |
-| Deploy ordering | Railway "Wait for CI" on for all 3 services: deploys follow green checks and the migration |
-| Application version | `2.0.13`; sweep fixes (PRs #3–#8) sit under `Unreleased` |
-| Runtime | Node 22 (`.nvmrc`; Railway build shows `nodejs_22`); Express 5; react-router 7 |
-| Tests | Backend 111 tests, **0 skipped** (CI fails on any skip; real Postgres incl. RLS); frontend 11 unit; Playwright `full-loop` + `fresh-donor` on every PR |
-| Dependencies | `npm audit --omit=dev`: 0 vulnerabilities (backend and frontend) |
+| Deploy ordering | Railway "Wait for CI" still active; it skipped one deploy when a Dependabot job failed (since fixed). Actions-based deploy is ready and activates with the `RAILWAY_TOKEN` secret (#62) |
+| Application version | `2.0.14` (tag `v2.0.14` → `b76c9d29`); later dependency work under `Unreleased` |
+| Runtime | Node 22 (`.nvmrc`); Express 5; React 18 + react-router 7; Vite 8 / Vitest 5 |
+| Tests | Backend 112 tests, **0 skipped** (real Postgres incl. RLS); frontend 11 unit; Playwright public (mobile + desktop), `full-loop` and `fresh-donor` on every PR |
+| Dependencies | `npm audit`: 0 vulnerabilities in both apps **including dev tooling**; Dependabot alerts + security PRs on, weekly grouped updates (`.github/dependabot.yml`); 0 open alerts |
 | CI failures since last review | Railway build of `38bde171` (PR #6 merge) failed: Nixpacks' default nixpkgs has no `nodejs_22`; fixed in PR #7 (pinned `nixpkgsArchive`). Production stayed on the previous healthy deploy |
-| Release tags | `v2.0.13` → `5687e810`; next release should tag the sweep (see release-and-tagging.md) |
+| Release tags | `v2.0.13` → `5687e810`, `v2.0.14` → `b76c9d29` |
 | Production check | `/api/health` and `/api/health/ready` 200 on 2026-10-07; all 3 services SUCCESS; escalation ticks clean |
 | Cron config | `raktasetu-escalation` → `/railway.escalation.toml`, `raktasetu-retention` → `/railway.retention.toml` (restart policy NEVER, no API healthcheck) |
 | Custom domain check | `raktasetu.in` NXDOMAIN (expired 2026-08-12): issue #9 |
-| Open tracked work | Milestone **Public launch** (#9–#14: domain, contact inboxes, email delivery, Neon plan, data controller, Android) and backlog #1, #15–#28 labelled `p2`/`p3` |
+| Open tracked work | Milestone **Public launch**: #9–#14 and #62 (deploy switch-over). Backlog: #1, #15–#28, #61 (React 19) |
 | Agent guidance | `CLAUDE.md` (+ `AGENTS.md` symlink, Cursor rule points to it) |
 
 Merged remote branch `cursor/neon-quota-ready-ed36` and local `feat/user-ready-today` were deleted. Remote `gh-pages` (2026-07-08, v1.0.3, retired hosting) is kept for history; delete it when no longer wanted.
