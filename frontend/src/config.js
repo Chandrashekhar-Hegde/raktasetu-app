@@ -7,7 +7,6 @@ const API_BASE = envUrl === undefined || envUrl === ''
   : String(envUrl).replace(/\/$/, '');
 export const API_URL = API_BASE ? `${API_BASE}/api` : '/api';
 export const SOCKET_URL = API_BASE || undefined;
-export const APP_VERSION = import.meta.env.VITE_APP_VERSION || '2.0.13';
 /** Must equal backend CURRENT_POLICY_VERSION (backend/src/validation/schemas.js); registration is rejected otherwise. */
 export const POLICY_VERSION = '2026-07-15';
 /** Public Google OAuth client ID. The button is hidden when unset. */

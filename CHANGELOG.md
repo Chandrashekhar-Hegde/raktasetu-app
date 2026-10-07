@@ -4,6 +4,10 @@ All notable changes to RaktaSetu are documented in this file.
 
 ## [Unreleased]
 
+## [2.0.14] — 2026-10-07
+
+Launch-readiness sweep (PRs #3–#8, #31): core donor loop works for self-registered donors, crash and data-correctness fixes, password reset and email verification, CI that runs every database test, protected `main`, Node 22.
+
 ### Added
 
 - Password reset by email (`/forgot-password`, 30-minute single-use link; resetting signs out every device) and email verification sent at sign-up (`/verify-email`, resend from Profile). Delivery uses Resend when `RESEND_API_KEY`/`EMAIL_FROM` are set; links use the configured public origin, never the request host.
