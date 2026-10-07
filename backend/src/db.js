@@ -6,7 +6,7 @@ import { postgresSslConfig } from './db/ssl.js';
 import { isProductionEnv } from './auth/refreshCookie.js';
 import { wrapDatabaseError } from './db/computeQuota.js';
 
-dotenv.config();
+dotenv.config({ quiet: true }); // dotenv 17+ logs every load unless quiet
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

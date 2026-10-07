@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "dev": "node --watch src/server.js",
     "test": "node --test tests/*.test.js",
     "test:security": "node --test tests/startup.security.test.js tests/security-controls.test.js tests/donation.transaction.test.js tests/access.matrix.test.js tests/push.ownership.test.js tests/socket.authorization.test.js",
     "test:rls": "node --test tests/rls.integration.test.js",
@@ -22,7 +22,7 @@
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^18.0.6",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.1",
     "google-auth-library": "^11.1.0",
@@ -36,7 +36,6 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.12.0",
-    "nodemon": "^3.1.4",
     "supertest": "^7.3.1"
   },
   "engines": {
