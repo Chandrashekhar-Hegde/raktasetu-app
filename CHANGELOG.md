@@ -46,6 +46,7 @@ All notable changes to RaktaSetu are documented in this file.
 
 ### Documentation
 
+- Repository-health snapshot refreshed after the launch-readiness sweep: protected `main`, wait-for-CI deploys, per-cron Railway config, 0 skipped tests, 0 audit findings; launch blockers tracked in the **Public launch** milestone (#9–#14).
 - Added a dated repository-health snapshot, active/reference/archive document tags, and a release-tagging policy.
 - Added a documentation issue template and linked the database read-only transaction TODO to GitHub issue #1.
 - Clarified that the base schema snapshot requires all later migrations and that security audit logging is a technical control, not a compliance claim.
