@@ -14,11 +14,8 @@ on:
       - '.github/workflows/frontend-ci.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'frontend/**'
-      # Any backend change can break the full loop (auth, services, middleware, jobs), not just two route files.
-      - 'backend/**'
-      - '.github/workflows/frontend-ci.yml'
+    # No paths filter on PRs: these are required checks, and a filtered-out
+    # workflow never reports, which would block every PR that doesn't touch it.
 
 jobs:
   build:

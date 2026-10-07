@@ -16,10 +16,11 @@ GitHub Pages and Cloudflare tunnel hosting are **retired**. The SPA is served by
 
 ## Production deploy path (default)
 
-1. Push to `main` on the canonical GitHub remote.
-2. Railway GitHub App auto-builds and deploys service **`raktasetu`** (project `raktasetu`).
-3. GitHub Actions applies migrations using repository secret **`MIGRATION_DATABASE_URL`** only.
-4. Cron service **`raktasetu-retention`** runs `npm --prefix backend run retention` on schedule with **`RETENTION_DATABASE_URL`** (owner/maintenance URL on that service only).
+1. Open a PR. **Backend CI** (`lint-and-test`, real Postgres, no skipped tests) and **Frontend CI** (`build`, `full-loop`) must pass; `main` is protected and requires them.
+2. Merge to `main`. GitHub Actions **Migrate and Deploy** applies migrations with repository secret **`MIGRATION_DATABASE_URL`** only.
+3. Railway's GitHub trigger has **Wait for CI** on for all three services: it deploys only after the commit's GitHub checks (including the migration) pass, so new code never boots against an old schema.
+4. Services: **`raktasetu`** (API + SPA), cron **`raktasetu-escalation`** (`*/5`, `/railway.escalation.toml`), cron **`raktasetu-retention`** (daily, `/railway.retention.toml`). The crons use their own config files so they don't inherit the API's healthcheck and restart policy.
+5. Verify: each service's deployment reaches `SUCCESS` (`railway deployment list --service <name> --json`) and `/api/health/ready` is 200.
 
 ### Secrets
 
@@ -73,13 +74,8 @@ The 5-minute escalation cron keeps Neon compute awake. Free plan is **100 CU-hou
 3. Confirm `GET /api/health/ready` is 200 and `POST /api/auth/login` is no longer 503 `COMPUTE_QUOTA_EXCEEDED`, then re-enable the cron if paused.
 
 
-## Branch protection (recommended)
+## Branch protection
 
-`main` is not protected via API from this workspace (org/plan permissions). In GitHub → Settings → Branches, protect `main` with:
-
-- Require a pull request before merging (1 reviewer when a second person joins)
-- Require status checks: **Backend CI**, **Frontend CI**, **Migrate and Deploy**
-- Do not allow force pushes
-- Optionally require conversation resolution
+`main` requires the status checks **lint-and-test** (Backend CI), **build** and **full-loop** (Frontend CI), and disallows force pushes and deletion. PR workflows have no path filter, so the required checks always report. Admins can still bypass in an emergency (`enforce_admins` off); use that only for hotfixes and follow up with a PR. Add "require 1 approving review" when a second maintainer joins.
 
 See also [CONTRIBUTING.md](../../CONTRIBUTING.md) and [operational-readiness.md](../operational-readiness.md).

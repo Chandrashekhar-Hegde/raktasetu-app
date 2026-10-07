@@ -8,9 +8,8 @@ on:
       - '.github/workflows/backend-ci.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend-ci.yml'
+    # No paths filter on PRs: these are required checks, and a filtered-out
+    # workflow never reports, which would block every PR that doesn't touch it.
 
 jobs:
   lint-and-test:
