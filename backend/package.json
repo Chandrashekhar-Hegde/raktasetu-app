@@ -1,6 +1,6 @@
 {
   "name": "raktasetu-backend",
-  "version": "2.0.13",
+  "version": "2.0.14",
   "description": "RaktaSetu Blood Donation Platform API",
   "main": "src/server.js",
   "type": "module",
