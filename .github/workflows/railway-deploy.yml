@@ -1,7 +1,8 @@
-# Migrations always run in CI with the owner-only secret.
-# App deploys come from the Railway GitHub App (source-connected service).
-# Optional: set repository secret RAILWAY_TOKEN (Railway Project Token) to also
-# trigger `railway up` from Actions. CLI/API cannot mint that token.
+# Production deploy: migrations first, then the 3 Railway services, from this workflow only.
+# main is protected (lint-and-test, build, full-loop must pass on the PR), so anything that
+# reaches here has passed CI. Deploying from Actions instead of Railway's "Wait for CI" keeps
+# unrelated check suites (e.g. a failed Dependabot job) from silently skipping deploys.
+# Needs repository secret RAILWAY_TOKEN (Railway project token for project raktasetu).
 
 name: Migrate and Deploy
 
@@ -13,9 +14,17 @@ on:
       - 'frontend/**'
       - 'package.json'
       - 'railway.toml'
+      - 'railway.escalation.toml'
+      - 'railway.retention.toml'
       - 'nixpacks.toml'
+      - '.nvmrc'
       - '.github/workflows/railway-deploy.yml'
   workflow_dispatch:
+
+# Never run two production deploys at once; queue instead of cancelling a half-done deploy.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 jobs:
   migrate-and-deploy:
@@ -45,25 +54,39 @@ jobs:
           npm --prefix backend run db:migrate
 
       - name: Install Railway CLI
-        run: npm install -g @railway/cli
+        run: npm install -g @railway/cli@5.26.1
 
-      - name: Optional CLI deploy (requires RAILWAY_TOKEN)
+      - name: Deploy API and crons, then wait for SUCCESS
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          # Non-secret Railway resource IDs for project-scoped tokens / linking
-          RAILWAY_PROJECT_ID: 9ae87412-e839-4967-b35d-888845b6184c
           RAILWAY_ENVIRONMENT_ID: 97a7d7c3-dd82-4b5b-bf62-991e3728e5e3
-          RAILWAY_SERVICE_ID: 066c4091-5df1-45ff-b65c-73f17b27cf92
+          # name=id; ids are not secrets
+          SERVICES: >-
+            raktasetu=066c4091-5df1-45ff-b65c-73f17b27cf92
+            raktasetu-escalation=22a1ce72-fbca-4a16-b294-6298f4ce1613
+            raktasetu-retention=518cdbc0-152a-4be2-a042-48e421057302
         run: |
           if [ -z "$RAILWAY_TOKEN" ]; then
-            echo "RAILWAY_TOKEN is not set — skipping Actions CLI deploy (workflow stays green)."
-            echo "Production app deploys via Railway GitHub App on push to main."
-            echo "Live: https://raktasetu-production.up.railway.app/"
-            echo ""
-            echo "To enable Actions CLI deploy later (optional):"
-            echo "  1. Railway dashboard → project raktasetu → Settings → Tokens → New Project Token"
-            echo "  2. gh secret set RAILWAY_TOKEN   # paste token; do not commit it"
-            echo "Never put MIGRATION_DATABASE_URL on the Railway app service."
+            echo "::warning::RAILWAY_TOKEN is not set; skipping the Actions deploy. Railway's own GitHub trigger still deploys until it is switched off (docs/ops/ci-cd.md)."
             exit 0
           fi
-          railway up --detach --service "$RAILWAY_SERVICE_ID"
+          declare -A IDS
+          for pair in $SERVICES; do
+            name=${pair%%=*}; id=${pair#*=}
+            dep=$(railway up --detach --json --service "$id" --environment "$RAILWAY_ENVIRONMENT_ID" -m "$GITHUB_SHA" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);process.stdout.write(j.deploymentId||j.id||"")})')
+            [ -n "$dep" ] || { echo "::error::railway up returned no deployment id for $name"; exit 1; }
+            echo "$name -> deployment $dep"; IDS[$name]=$dep
+          done
+          # `up --detach` returns at upload; a deploy only counts once Railway reports SUCCESS.
+          for name in "${!IDS[@]}"; do
+            for i in $(seq 1 60); do
+              status=$(railway deployment list --service "$name" --environment "$RAILWAY_ENVIRONMENT_ID" --json \
+                | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const d=JSON.parse(s).find(x=>x.id===process.argv[1]);process.stdout.write(d?d.status:"UNKNOWN")})' "${IDS[$name]}")
+              case "$status" in
+                SUCCESS) echo "$name: SUCCESS"; break ;;
+                FAILED|CRASHED|REMOVED|SKIPPED) echo "::error::$name deployment ${IDS[$name]} ended $status"; exit 1 ;;
+              esac
+              sleep 15
+            done
+            [ "$status" = SUCCESS ] || { echo "::error::$name did not reach SUCCESS in 15 minutes (last: $status)"; exit 1; }
+          done
