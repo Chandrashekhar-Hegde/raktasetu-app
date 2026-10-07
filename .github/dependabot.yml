@@ -27,6 +27,9 @@ updates:
         update-types: ['version-update:semver-major']
       - dependency-name: vite
         update-types: ['version-update:semver-major']
+      # react-leaflet 5 requires React 19; upgrade together with React (tracked in an issue).
+      - dependency-name: react-leaflet
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /

@@ -63,10 +63,14 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          three: ['three'],
-          leaflet: ['leaflet', 'react-leaflet'],
-          vendor: ['react', 'react-dom', 'react-router-dom', 'axios'],
+        // Function form: Vite 8 (Rolldown) no longer accepts the object form.
+        manualChunks(id) {
+          const pkg = id.match(/[\\/]node_modules[\\/](@[^\\/]+[\\/][^\\/]+|[^\\/]+)/)?.[1]
+          if (!pkg) return undefined
+          if (pkg === 'three') return 'three'
+          if (['leaflet', 'react-leaflet', '@react-leaflet/core'].includes(pkg)) return 'leaflet'
+          if (['react', 'react-dom', 'scheduler', 'react-router', 'react-router-dom', 'axios'].includes(pkg)) return 'vendor'
+          return undefined
         },
       },
     },
