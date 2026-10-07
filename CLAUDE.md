@@ -70,7 +70,7 @@ CI fails if any test is **skipped**: a skipped DB test is how RLS went untested 
 3. New env var: documented in `backend/.env.example` (or `frontend/.env.example`).
 4. `CHANGELOG.md` → `Unreleased` updated for anything a user or operator would notice.
 5. No secrets, real phone numbers or production DB URLs in code, docs, tests or logs.
-6. Work lands through a PR; `main` is protected and requires Backend CI + Frontend CI.
+6. Work lands through a PR; `main` is protected (admins included) and requires `lint-and-test`, `build` and `full-loop`. Never disable protection to get a change in.
 
 ## What not to do
 
