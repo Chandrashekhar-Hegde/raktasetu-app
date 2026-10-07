@@ -1,6 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
 import { query } from '../db.js';
 import { withAuthorizationContext } from '../db/authorizedTransaction.js';
 import { authenticate } from '../middleware/auth.js';

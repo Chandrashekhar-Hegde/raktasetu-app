@@ -1,8 +1,9 @@
 import express from 'express';
+import { GIVERS, haversineKm } from '../utils/bloodCompatibility.js';
 import { query } from '../db.js';
 import { respondIfDatabaseDown } from '../db/computeQuota.js';
 import { authenticate, requireActiveAccount, requireRole } from '../middleware/auth.js';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
 import { logAudit } from '../utils/compliance.js';
 import {
   donorProfileSchema,
@@ -24,32 +25,6 @@ import {
 } from '../services/redemptionService.js';
 
 const router = express.Router();
-
-/**
- * Blood compatibility matrix: which blood groups can DONATE to a given recipient group.
- * Keep identical to hospital.js and frontend/src/theme.js (guarded by compatibility-matrix.test.js).
- */
-export const GIVERS = {
-  'O-':  ['O-'],
-  'O+':  ['O-', 'O+'],
-  'A-':  ['O-', 'A-'],
-  'A+':  ['O-', 'O+', 'A-', 'A+'],
-  'B-':  ['O-', 'B-'],
-  'B+':  ['O-', 'O+', 'B-', 'B+'],
-  'AB-': ['O-', 'A-', 'B-', 'AB-'],
-  'AB+': ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+']
-};
-
-/**
- * Haversine distance in km between two lat/lng points
- */
-function haversine(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
 
 // All donor routes require donor role
 router.use(authenticate, requireActiveAccount, requireRole('donor'));
@@ -97,7 +72,7 @@ router.get('/dashboard', async (req, res) => {
 
       nearbyRequests = requestsResult.rows
         .map(r => {
-          const dist = haversine(
+          const dist = haversineKm(
             parseFloat(user.latitude), parseFloat(user.longitude),
             parseFloat(r.latitude || r.h_lat), parseFloat(r.longitude || r.h_lng)
           );
@@ -219,7 +194,7 @@ router.get('/requests', validate(paginationSchema, 'query'), async (req, res) =>
 
     const requests = requestsResult.rows
       .map(r => {
-        const dist = haversine(
+        const dist = haversineKm(
           parseFloat(user.latitude), parseFloat(user.longitude),
           parseFloat(r.latitude || r.h_lat), parseFloat(r.longitude || r.h_lng)
         );

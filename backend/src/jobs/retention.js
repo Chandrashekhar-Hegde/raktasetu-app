@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
 import { postgresSslConfig } from '../db/ssl.js';
 import { handleMaintenanceJobFailure } from '../db/computeQuota.js';
 import { anonymizeExpiredDeletions } from '../services/accountDeletionService.js';

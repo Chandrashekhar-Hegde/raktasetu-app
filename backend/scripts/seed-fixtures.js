@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
 
 if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT) {
   throw new Error('Fixture seeding is disabled in production');

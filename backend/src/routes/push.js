@@ -1,6 +1,6 @@
 import express from 'express';
 import webpush from 'web-push';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
 import { query } from '../db.js';
 import { respondIfDatabaseDown } from '../db/computeQuota.js';
 import { authenticate, requireActiveAccount } from '../middleware/auth.js';

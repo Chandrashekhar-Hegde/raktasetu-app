@@ -1,5 +1,5 @@
 import { query } from '../db.js';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
 
 /**
  * Security audit logger for sensitive operations and health-related data access.

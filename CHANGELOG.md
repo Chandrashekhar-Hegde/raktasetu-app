@@ -17,6 +17,11 @@ All notable changes to RaktaSetu are documented in this file.
 
 ### Changed
 
+- Node 22 everywhere (`.nvmrc` drives CI, `nixpacks.toml`, `engines`); production previously ran end-of-life Node 20.6.1.
+- One backend source for blood compatibility and distance (`backend/src/utils/bloodCompatibility.js`); the test now checks the table against the ABO/Rh rule, not just copy-against-copy.
+- Dependencies: `uuid` replaced by `crypto.randomUUID`, react-router 7; `npm audit --omit=dev` reports 0 vulnerabilities in both apps.
+- Removed dead deploy config (`railway.json`, `start.sh`, `backend/Dockerfile`, `fly.toml`, `render.yaml`, `check_schema.mjs`, nixpacks `[start]`, root `postinstall`); frontend builds use `npm ci`.
+- `CLAUDE.md` (with `AGENTS.md` symlink) is the single guide for AI coding agents; the Cursor rule points to it; the PR template carries the definition of done.
 - Sign-in shows a temporary-unavailable message (en + kn) when the API reports a database outage.
 
 ### Fixed

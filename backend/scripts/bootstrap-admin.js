@@ -6,7 +6,7 @@
  */
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
 
 if (process.env.ALLOW_ADMIN_BOOTSTRAP !== '1') {
   throw new Error('Set ALLOW_ADMIN_BOOTSTRAP=1 to run admin bootstrap');
