@@ -6,6 +6,7 @@ All notable changes to RaktaSetu are documented in this file.
 
 ### Changed
 
+- Dependency batch 2 (reviewed): dotenv 18 (`db.js` loads quietly), lucide-react 1.52 (all 32 icons we use still exist), qrcode.react 4 (named export unchanged), jsdom 30 (tests). `nodemon` replaced by Node's built-in `node --watch` for `npm run dev`, removing a dev-only `braces` advisory. Both apps: `npm audit` 0 including dev.
 - Frontend toolchain: Vite 8, @vitejs/plugin-react 6, Vitest 5, vite-plugin-pwa 2. `npm audit` (including dev tooling) reports 0 vulnerabilities; it previously had 23 dev-only alerts (2 critical). `manualChunks` moved to the function form Vite 8 requires.
 - Backend majors (reviewed): bcryptjs 3 (still verifies existing `$2a$` hashes; new ones are `$2b$`), helmet 8 (same headers), express-rate-limit 8, google-auth-library 11 (Node 22). Anonymous rate-limit keys now group IPv6 clients by subnet, so rotating addresses inside a /64 no longer escapes the limit.
 - Production deploys run from the **Migrate and Deploy** workflow (migrate, then `railway up` for the API and both crons, verified to `SUCCESS`) instead of Railway's "Wait for CI", which a failed Dependabot job had blocked. Activates once the `RAILWAY_TOKEN` secret is added.
