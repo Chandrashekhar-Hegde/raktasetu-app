@@ -4,6 +4,11 @@ All notable changes to RaktaSetu are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Production deploys run from the **Migrate and Deploy** workflow (migrate, then `railway up` for the API and both crons, verified to `SUCCESS`) instead of Railway's "Wait for CI", which a failed Dependabot job had blocked. Activates once the `RAILWAY_TOKEN` secret is added.
+- Frontend: xcode's transitive `uuid` pinned to a patched 11.1.1; unused `typescript` removed; `@capacitor/cli` is a dev dependency.
+
 ## [2.0.14] — 2026-10-07
 
 Launch-readiness sweep (PRs #3–#8, #31): core donor loop works for self-registered donors, crash and data-correctness fixes, password reset and email verification, CI that runs every database test, protected `main`, Node 22.

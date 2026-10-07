@@ -17,8 +17,10 @@ GitHub Pages and Cloudflare tunnel hosting are **retired**. The SPA is served by
 ## Production deploy path (default)
 
 1. Open a PR. **Backend CI** (`lint-and-test`, real Postgres, no skipped tests) and **Frontend CI** (`build`, `full-loop`) must pass; `main` is protected and requires them.
-2. Merge to `main`. GitHub Actions **Migrate and Deploy** applies migrations with repository secret **`MIGRATION_DATABASE_URL`** only.
-3. Railway's GitHub trigger has **Wait for CI** on for all three services: it deploys only after the commit's GitHub checks (including the migration) pass, so new code never boots against an old schema.
+2. Merge to `main`. The **Migrate and Deploy** workflow applies migrations with **`MIGRATION_DATABASE_URL`**, then runs `railway up` for all three services and waits until each deployment reports `SUCCESS` (it fails the workflow on `FAILED`/`CRASHED` or a 15-minute timeout). Production deploys are serialised (`concurrency: production-deploy`).
+3. Why Actions and not Railway's "Wait for CI": Railway waits on *every* check suite on the commit, and a failed Dependabot job on `main` made it silently skip a deploy (2026-10-07).
+
+   **Switch-over (one time):** an owner creates a Railway project token (dashboard → project `raktasetu` → Settings → Tokens), stores it with `gh secret set RAILWAY_TOKEN`, then runs the workflow once by hand (`gh workflow run "Migrate and Deploy"`). When all three services reach SUCCESS from that run, disconnect Railway's GitHub deploy triggers for the three services so each change deploys exactly once. Until the token exists the deploy step logs a warning and skips, and Railway's own trigger keeps deploying.
 4. Services: **`raktasetu`** (API + SPA), cron **`raktasetu-escalation`** (`*/5`, `/railway.escalation.toml`), cron **`raktasetu-retention`** (daily, `/railway.retention.toml`). The crons use their own config files so they don't inherit the API's healthcheck and restart policy.
 5. Verify: each service's deployment reaches `SUCCESS` (`railway deployment list --service <name> --json`) and `/api/health/ready` is 200.
 
