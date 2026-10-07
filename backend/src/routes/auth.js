@@ -19,14 +19,18 @@ import {
   CURRENT_POLICY_VERSION,
   consentSchema,
   deleteAccountSchema,
+  forgotPasswordSchema,
   googleLinkSchema,
   googleOnboardingSchema,
   googleTokenSchema,
   loginSchema,
   registrationSchema,
+  resetPasswordSchema,
   restoreAccountSchema,
   validate,
+  verifyEmailSchema,
 } from '../validation/schemas.js';
+import { publicAppOrigin, sendEmail } from '../services/email.js';
 import {
   isWithinDeletionGrace,
   requestAccountDeletion,
@@ -65,6 +69,43 @@ function sessionResponse(res, req, status, user, session, extra = {}) {
     success: true,
     data: { user: publicUser(user), ...delivered, ...extra },
   });
+}
+
+const EMAIL_TOKEN_TTL_MINUTES = { reset_password: 30, verify_email: 24 * 60 };
+
+/** New single-use token for `purpose`; earlier unused tokens of the same purpose stop working. */
+async function issueEmailToken(client, userId, purpose) {
+  await client.query(
+    'UPDATE auth_tokens SET used_at = NOW() WHERE user_id = $1 AND purpose = $2 AND used_at IS NULL',
+    [userId, purpose],
+  );
+  const { token, hash } = createOneTimeToken();
+  await client.query(
+    `INSERT INTO auth_tokens (user_id, purpose, token_hash, expires_at)
+     VALUES ($1, $2, $3, NOW() + make_interval(mins => $4))`,
+    [userId, purpose, hash, EMAIL_TOKEN_TTL_MINUTES[purpose]],
+  );
+  return token;
+}
+
+/** Marks a valid token used and returns its user id, or null if unknown, used or expired. */
+async function consumeEmailToken(client, token, purpose) {
+  const result = await client.query(
+    `UPDATE auth_tokens SET used_at = NOW()
+     WHERE token_hash = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > NOW()
+     RETURNING user_id`,
+    [hashOneTimeToken(token), purpose],
+  );
+  return result.rows[0]?.user_id || null;
+}
+
+// Email delivery never blocks or fails the request that triggered it.
+function sendVerificationEmail(to, token) {
+  return sendEmail({
+    to,
+    subject: 'Confirm your RaktaSetu email',
+    text: `Confirm your email for RaktaSetu by opening this link (valid for 24 hours):\n\n${publicAppOrigin()}/verify-email?token=${token}\n\nIf you did not create a RaktaSetu account, ignore this email.`,
+  }).catch((error) => console.error('Verification email failed:', error.message));
 }
 
 router.post('/register', validate(registrationSchema), async (req, res) => {
@@ -130,9 +171,11 @@ router.post('/register', validate(registrationSchema), async (req, res) => {
         req,
         client,
       });
-      if (input.role === 'hospital') return { pending: true };
-      return { user, session: await issueSession(user, client) };
+      const verifyToken = await issueEmailToken(client, userId, 'verify_email');
+      if (input.role === 'hospital') return { pending: true, verifyToken };
+      return { user, session: await issueSession(user, client), verifyToken };
     });
+    if (result.verifyToken) sendVerificationEmail(input.email, result.verifyToken);
 
     if (result.conflict) return failure(res, 409, 'IDENTITY_ALREADY_EXISTS', 'Email or phone is already registered');
     if (result.pending) {
@@ -415,6 +458,85 @@ router.post('/google/link', authenticate, validate(googleLinkSchema), async (req
   }
 });
 
+/**
+ * POST /api/auth/password/forgot — always 200, so the response never reveals whether an email is registered.
+ */
+router.post('/password/forgot', validate(forgotPasswordSchema), async (req, res) => {
+  try {
+    const token = await withAuthorizationContext({ role: 'auth' }, async (client) => {
+      const found = await client.query(
+        "SELECT id FROM users WHERE email = $1 AND account_status = 'active' AND deleted_at IS NULL",
+        [req.body.email],
+      );
+      if (!found.rows[0]) return null;
+      await logAudit({ userId: found.rows[0].id, action: 'PASSWORD_RESET_REQUESTED', resourceType: 'user', resourceId: found.rows[0].id, req, client });
+      return issueEmailToken(client, found.rows[0].id, 'reset_password');
+    });
+    if (token) {
+      sendEmail({
+        to: req.body.email,
+        subject: 'Reset your RaktaSetu password',
+        text: `Someone asked to reset the password for your RaktaSetu account. Open this link within 30 minutes to choose a new one:\n\n${publicAppOrigin()}/reset-password?token=${token}\n\nIf this wasn't you, ignore this email; your password stays the same.`,
+      }).catch((error) => console.error('Reset email failed:', error.message));
+    }
+    return res.json({ success: true, data: { sent: true } });
+  } catch (error) {
+    console.error('Password reset request failed:', error.code || '', error.message);
+    return failureFromCaught(res, error, 500, 'PASSWORD_RESET_FAILED', 'Could not start password reset');
+  }
+});
+
+/**
+ * POST /api/auth/password/reset — sets the new password and signs out every device.
+ */
+router.post('/password/reset', validate(resetPasswordSchema), async (req, res) => {
+  try {
+    const passwordHash = await bcrypt.hash(req.body.password, 12);
+    const userId = await withAuthorizationContext({ role: 'auth' }, async (client) => {
+      const id = await consumeEmailToken(client, req.body.token, 'reset_password');
+      if (!id) return null;
+      // token_version invalidates access tokens; revoking refresh tokens ends every session.
+      await client.query(
+        'UPDATE users SET password_hash = $1, token_version = token_version + 1, updated_at = NOW() WHERE id = $2',
+        [passwordHash, id],
+      );
+      await client.query('UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL', [id]);
+      await logAudit({ userId: id, action: 'PASSWORD_RESET_COMPLETED', resourceType: 'user', resourceId: id, req, client });
+      return id;
+    });
+    if (!userId) return failure(res, 400, 'INVALID_OR_EXPIRED_TOKEN', 'This reset link is invalid or has expired. Request a new one.');
+    disconnectUser(userId);
+    return res.json({ success: true, data: { reset: true } });
+  } catch (error) {
+    console.error('Password reset failed:', error.code || '', error.message);
+    return failureFromCaught(res, error, 500, 'PASSWORD_RESET_FAILED', 'Could not reset password');
+  }
+});
+
+/**
+ * POST /api/auth/email/verify/send — signed-in user asks for a new verification link.
+ */
+router.post('/email/verify/send', authenticate, async (req, res) => {
+  const user = await query('SELECT email, is_verified FROM users WHERE id = $1', [req.user.id]);
+  if (user.rows[0]?.is_verified) return res.json({ success: true, data: { already_verified: true } });
+  const token = await withAuthorizationContext({ role: 'auth' }, (client) => issueEmailToken(client, req.user.id, 'verify_email'));
+  sendVerificationEmail(user.rows[0].email, token);
+  return res.json({ success: true, data: { sent: true } });
+});
+
+/**
+ * POST /api/auth/email/verify/confirm — the link in the email lands here (no sign-in needed).
+ */
+router.post('/email/verify/confirm', validate(verifyEmailSchema), async (req, res) => {
+  const userId = await withAuthorizationContext({ role: 'auth' }, async (client) => {
+    const id = await consumeEmailToken(client, req.body.token, 'verify_email');
+    if (id) await client.query('UPDATE users SET is_verified = true, updated_at = NOW() WHERE id = $1', [id]);
+    return id;
+  });
+  if (!userId) return failure(res, 400, 'INVALID_OR_EXPIRED_TOKEN', 'This verification link is invalid or has expired.');
+  return res.json({ success: true, data: { verified: true } });
+});
+
 router.post('/refresh', async (req, res) => {
   const refreshToken = readRefreshToken(req);
   const bodyKeys = Object.keys(req.body || {});
@@ -423,8 +545,9 @@ router.post('/refresh', async (req, res) => {
     return failure(res, 400, 'VALIDATION_ERROR', 'A valid refresh token is required');
   }
   if (!refreshToken) {
-    // Logged-out visitors hit this on every page load; 401 is "no session", not a malformed request.
-    return failure(res, 401, 'NO_SESSION', 'No active session');
+    // Logged-out visitors hit this on every page load: "nothing to refresh" is not an error
+    // (a 4xx here shows up as a console error for every anonymous visitor).
+    return res.status(204).end();
   }
   try {
     const result = await withAuthorizationContext({ role: 'auth' }, async (client) => {

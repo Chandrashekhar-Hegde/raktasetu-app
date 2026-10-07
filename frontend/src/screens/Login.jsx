@@ -310,6 +310,12 @@ export default function Login() {
             </Btn>
           </form>
 
+          {!restorable && (
+            <Link to="/forgot-password" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 44, marginTop: 8, fontFamily: body, fontSize: 14, color: '#D9CBC8' }}>
+              {t('login.forgot')}
+            </Link>
+          )}
+
           {restorable ? (
             <button
               type="button"

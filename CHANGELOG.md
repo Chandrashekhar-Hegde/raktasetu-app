@@ -6,6 +6,7 @@ All notable changes to RaktaSetu are documented in this file.
 
 ### Added
 
+- Password reset by email (`/forgot-password`, 30-minute single-use link; resetting signs out every device) and email verification sent at sign-up (`/verify-email`, resend from Profile). Delivery uses Resend when `RESEND_API_KEY`/`EMAIL_FROM` are set; links use the configured public origin, never the request host.
 - Hospital request detail screen (responders by blood group, mark filled, close) and `PATCH /api/hospital/location`.
 - `fresh-donor` e2e: register → share location → go on call → hospital broadcast → accept → hospital closes the request.
 - `GET /api/donor/responses/:requestId` for the On-the-way screen.
@@ -33,7 +34,7 @@ All notable changes to RaktaSetu are documented in this file.
 - Escalation cron locks one request at a time and pushes after commit, so it no longer blocks donation verification.
 - Retention: expiring a redemption and releasing its credits commit together.
 - Rate limiting keys on a verified token (forged tokens no longer get fresh buckets); the strict per-IP limit applies only to credential routes, not `/me` or `/refresh`.
-- Refresh-token replay after rotation revokes the whole session family; logged-out page loads get 401 instead of 400.
+- Refresh-token replay after rotation revokes the whole session family; logged-out page loads get 204 (no console error) instead of 400.
 - Logs carry error code/message only (no phone/email from Postgres `detail`); duplicate phone on sign-up or profile edit returns 409.
 - Production refuses to run if the database runtime role can bypass row-level security.
 - Escalation and retention crons no longer crash on `Connection terminated unexpectedly` when Neon drops the socket mid-run: the pg client now has an `'error'` listener and socket-loss errors are treated as transient (logged, exit 0).

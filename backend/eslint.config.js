@@ -17,6 +17,10 @@ export default [
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
         URL: 'readonly',
+        // Node 18+ built-ins
+        fetch: 'readonly',
+        AbortSignal: 'readonly',
+        setImmediate: 'readonly',
       },
     },
     rules: {

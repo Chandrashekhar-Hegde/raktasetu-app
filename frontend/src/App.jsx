@@ -35,6 +35,7 @@ import ConsoleVerify from './screens/ConsoleVerify.jsx';
 /* Admin */
 import AdminDashboard from './screens/AdminDashboard.jsx';
 import NotFound from './screens/NotFound.jsx';
+import { ForgotPassword, ResetPassword, VerifyEmail } from './screens/AccountRecovery.jsx';
 import ConsoleRequest from './screens/ConsoleRequest.jsx';
 
 const PUBLIC_PATHS = new Set([
@@ -48,6 +49,9 @@ const PUBLIC_PATHS = new Set([
   '/google-onboarding',
   '/account-link',
   '/hospital-pending',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
 ]);
 
 function App() {
@@ -97,6 +101,9 @@ function App() {
             }
           />
           <Route path="/hospital-pending" element={<HospitalPending />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
 
           {/* Donor routes */}
           <Route path="/home" element={

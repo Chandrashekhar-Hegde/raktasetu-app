@@ -27,6 +27,7 @@ try {
       ['pending_google_registrations', 'expires_at < NOW() - INTERVAL \'1 day\''],
       ['refresh_tokens', 'expires_at < NOW() - INTERVAL \'7 days\' OR revoked_at < NOW() - INTERVAL \'30 days\''],
       ['token_blacklist', 'expires_at < NOW() - INTERVAL \'1 day\''],
+      ['auth_tokens', 'expires_at < NOW() - INTERVAL \'1 day\''],
       ['notifications', 'created_at < NOW() - INTERVAL \'365 days\''],
       ['audit_logs', 'created_at < NOW() - INTERVAL \'7 years\' AND legal_hold = false'],
     ];

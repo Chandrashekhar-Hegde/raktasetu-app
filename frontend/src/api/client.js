@@ -50,6 +50,7 @@ async function refreshSession() {
     {},
     { withCredentials: true, headers: { 'Content-Type': 'application/json' } },
   );
+  if (response.status === 204) throw new Error('No session'); // logged-out visitor
   const session = response.data.data;
   setAccessToken(session.token);
   return session.token;
