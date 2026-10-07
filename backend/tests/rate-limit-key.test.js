@@ -39,3 +39,10 @@ test('apiRateLimitKey ignores forged tokens so they cannot mint fresh buckets', 
   const key = apiRateLimitKey({ headers: { authorization: `Bearer ${forged}` }, ip: '198.51.100.9' });
   assert.equal(key, '198.51.100.9');
 });
+
+test('apiRateLimitKey groups IPv6 clients by subnet so rotating addresses in a /64 shares one bucket', () => {
+  const a = apiRateLimitKey({ headers: {}, ip: '2001:db8:1234:5678::1' });
+  const b = apiRateLimitKey({ headers: {}, ip: '2001:db8:1234:5678:abcd::99' });
+  assert.equal(a, b);
+  assert.notEqual(a, apiRateLimitKey({ headers: {}, ip: '2001:db8:9999::1' }), 'different networks stay separate');
+});

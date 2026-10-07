@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { ipKeyGenerator } from 'express-rate-limit';
 import { JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER } from '../auth/session.js';
 
 /**
@@ -24,5 +25,7 @@ export function apiRateLimitKey(req) {
       /* forged or malformed: use IP */
     }
   }
-  return req.ip || req.socket?.remoteAddress || 'anonymous';
+  const ip = req.ip || req.socket?.remoteAddress;
+  // IPv6 clients usually own a whole /64 or larger: key the subnet, not the address they can rotate.
+  return ip ? ipKeyGenerator(ip) : 'anonymous';
 }
