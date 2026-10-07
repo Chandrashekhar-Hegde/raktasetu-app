@@ -138,6 +138,10 @@ export const requestCreateSchema = z.object({
   needed_by: z.iso.datetime().optional(),
 }).strict();
 export const requestStatusSchema = z.object({ status: z.enum(['open', 'filled', 'closed']) }).strict();
+const emailToken = z.string().min(32).max(200).regex(/^[A-Za-z0-9_-]+$/);
+export const forgotPasswordSchema = z.object({ email }).strict();
+export const resetPasswordSchema = z.object({ token: emailToken, password }).strict();
+export const verifyEmailSchema = z.object({ token: emailToken }).strict();
 export const consentSchema = z.object({ consent_given: z.boolean() }).strict();
 
 export const deleteAccountSchema = z.object({

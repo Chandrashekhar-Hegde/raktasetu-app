@@ -25,6 +25,7 @@ export default function DonorProfile() {
   const [dateOfBirth, setDateOfBirth] = useState(user?.date_of_birth?.slice?.(0, 10) || '');
   const [sex, setSex] = useState(user?.sex || '');
   const [profileMsg, setProfileMsg] = useState('');
+  const [verifyState, setVerifyState] = useState('idle');
 
   useEffect(() => {
     fetchHistory();
@@ -92,6 +93,19 @@ export default function DonorProfile() {
           <p style={{ fontFamily: body, fontSize: 12, color: T.faint, margin: '2px 0 0' }}>
             {verified ? t('profile.verifiedBody') : t('profile.unverifiedBody')}
           </p>
+          {!verified && (
+            <button type="button" disabled={verifyState !== 'idle'} onClick={async () => {
+              setVerifyState('sending');
+              try {
+                await api.post('/auth/email/verify/send');
+                setVerifyState('sent');
+              } catch {
+                setVerifyState('idle');
+              }
+            }} style={{ marginTop: 6, minHeight: 44, padding: 0, background: 'none', border: 'none', color: T.oxblood, fontFamily: body, fontSize: 14, fontWeight: 700, cursor: 'pointer', textAlign: 'left' }}>
+              {verifyState === 'sent' ? t('profile.verifySent') : t('profile.verifySend')}
+            </button>
+          )}
         </div>
       </Card>
 

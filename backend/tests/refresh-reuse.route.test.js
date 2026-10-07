@@ -5,11 +5,11 @@ import { hasTestDatabase, loadApp, ownerClient, donorPayload } from './helpers/r
 
 const native = { 'X-Client-Platform': 'native' };
 
-test('refresh: no session is 401; replaying an old rotated token revokes the family', { skip: !hasTestDatabase }, async () => {
+test('refresh: no session is 204; replaying an old rotated token revokes the family', { skip: !hasTestDatabase }, async () => {
   const { app, pool } = await loadApp();
   const owner = await ownerClient();
   try {
-    await request(app).post('/api/auth/refresh').expect(401);
+    await request(app).post('/api/auth/refresh').expect(204);
 
     const reg = await request(app).post('/api/auth/register').set(native).send(donorPayload()).expect(201);
     const first = reg.body.data.refresh_token;
