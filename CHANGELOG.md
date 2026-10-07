@@ -17,6 +17,7 @@ All notable changes to RaktaSetu are documented in this file.
 
 ### Changed
 
+- Dependabot alerts and security-fix PRs are on; `.github/dependabot.yml` opens grouped weekly npm updates (backend, frontend) and monthly GitHub Actions updates. They merge only through the protected-branch checks.
 - Node 22 everywhere (`.nvmrc` drives CI, `nixpacks.toml`, `engines`); production previously ran end-of-life Node 20.6.1.
 - One backend source for blood compatibility and distance (`backend/src/utils/bloodCompatibility.js`); the test now checks the table against the ABO/Rh rule, not just copy-against-copy.
 - Dependencies: `uuid` replaced by `crypto.randomUUID`, react-router 7; `npm audit --omit=dev` reports 0 vulnerabilities in both apps.
