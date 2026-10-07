@@ -6,6 +6,8 @@ All notable changes to RaktaSetu are documented in this file.
 
 ### Added
 
+- Hospital request detail screen (responders by blood group, mark filled, close) and `PATCH /api/hospital/location`.
+- `fresh-donor` e2e: register → share location → go on call → hospital broadcast → accept → hospital closes the request.
 - `GET /api/donor/responses/:requestId` for the On-the-way screen.
 - Route tests against a real Postgres (`backend/tests/*.route.test.js`); CI now runs every DB-backed test and fails if any test is skipped.
 - `GET /api/health/ready` pings Postgres (`SELECT 1`) and returns 503 when the database is unreachable or Neon compute quota is exhausted. Railway liveness remains `GET /api/health` (no DB) so the SPA is not restarted during a quota outage.
@@ -18,6 +20,10 @@ All notable changes to RaktaSetu are documented in this file.
 
 ### Fixed
 
+- Donors who sign up in the app can now be matched: location is captured (tap-to-share, ~100 m precision) at sign-up, from a home-screen prompt, or in Profile; hospitals set theirs from the console.
+- API errors no longer blank the screen (shared error-message helper + error boundary); sessions survive slow networks and expire cleanly to sign-in; live alerts reconnect after token rotation.
+- Donor map tiles load in production (CSP allows OpenStreetMap); fonts are self-hosted (no Google Fonts request).
+- Sign-up no longer pre-selects a blood group; the form is labelled, translated (en + kn) and shows the password rule.
 - API no longer exits on an async route error (Express 5): a database blip on `/api/auth/me` used to take the whole service down.
 - Admin user/request lists past the first page (keyset SQL was malformed and always returned 500).
 - Donor dashboard credit balance now matches the ledger (it could show 400 for a real balance of 100).

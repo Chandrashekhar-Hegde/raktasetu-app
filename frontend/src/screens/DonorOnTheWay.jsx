@@ -6,7 +6,7 @@ import { T } from '../theme.js';
 import Card from '../components/Card.jsx';
 import Btn from '../components/Btn.jsx';
 import BottomNav from '../components/BottomNav.jsx';
-import api from '../api/client.js';
+import api, { errMsg } from '../api/client.js';
 import { t } from '../i18n.js';
 
 const body = "'Public Sans', 'Segoe UI', system-ui, sans-serif";
@@ -20,28 +20,20 @@ export default function DonorOnTheWay() {
   const [qrData, setQrData] = useState('');
   const [arrived, setArrived] = useState(false);
   const [arriving, setArriving] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchRequest();
+    // Dedicated endpoint: the open-requests list drops filled or day-old requests.
+    api.get(`/donor/responses/${requestId}`)
+      .then(({ data }) => {
+        const found = data.data.request;
+        setRequest(found);
+        setQrData(found.ref_code || '');
+        setArrived(['arrived', 'completed'].includes(found.response_status));
+      })
+      .catch((err) => setError(errMsg(err, t('ontheway.loadFailed'))))
+      .finally(() => setLoading(false));
   }, [requestId]);
-
-  const fetchRequest = async () => {
-    try {
-      const { data: response } = await api.get(`/donor/requests`);
-      const payload = response.data || response;
-      const found = payload.requests?.find(r => r.id === requestId);
-      setRequest(found || null);
-      if (found?.ref_code) {
-        setQrData(found.ref_code);
-      } else {
-        setQrData('');
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const openDirections = () => {
     if (!request?.latitude || !request?.longitude) return;
@@ -59,7 +51,7 @@ export default function DonorOnTheWay() {
       await api.post(`/donor/arrived/${requestId}`);
       setArrived(true);
     } catch (_err) {
-      alert(_err.response?.data?.error || 'Failed to mark arrival');
+      setError(errMsg(_err, t('ontheway.arriveFailed')));
     } finally {
       setArriving(false);
     }
@@ -69,8 +61,8 @@ export default function DonorOnTheWay() {
 
   return (
     <div style={{ padding: '18px 18px calc(90px + env(safe-area-inset-bottom))', maxWidth: 430, margin: '0 auto' }}>
-      <button onClick={() => navigate('/home')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, fontFamily: body, fontSize: 13, color: T.mut }}>
-        <ArrowLeft size={16} /> {t('ontheway.back')}
+      <button type="button" onClick={() => navigate('/home')} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, minHeight: 44, fontFamily: body, fontSize: 14, color: T.mut }}>
+        <ArrowLeft size={16} aria-hidden="true" /> {t('ontheway.back')}
       </button>
 
       <Card style={{ background: T.leafSoft, borderColor: '#CBE3D8', display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -82,8 +74,8 @@ export default function DonorOnTheWay() {
       </Card>
 
       <Card style={{ marginTop: 12 }}>
-        <p style={{ fontFamily: display, fontWeight: 800, fontSize: 16, margin: 0, color: T.ink }}>{request?.hospital_name || 'Hospital'}</p>
-        <p style={{ fontFamily: body, fontSize: 12.5, color: T.mut, margin: '3px 0 12px' }}>{request?.address || ''} · ref {request?.ref_code || 'Not available'}</p>
+        <p style={{ fontFamily: display, fontWeight: 800, fontSize: 16, margin: 0, color: T.ink }}>{request?.hospital_name || t('ontheway.hospital')}</p>
+        <p style={{ fontFamily: body, fontSize: 12.5, color: T.mut, margin: '3px 0 12px' }}>{request?.hospital_address || ''} · ref {request?.ref_code || t('ontheway.notAvailable')}</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Btn kind="primary" small onClick={openDirections}><Navigation size={14} /> {t('ontheway.directions')}</Btn>
           <Btn kind="ghost" small onClick={callHospital}><Phone size={14} /> {t('ontheway.call')}</Btn>
@@ -91,6 +83,7 @@ export default function DonorOnTheWay() {
             {arrived ? t('ontheway.arrivedDone') : arriving ? t('ontheway.marking') : t('ontheway.arrived')}
           </Btn>
         </div>
+        {error && <p role="alert" style={{ fontFamily: body, fontSize: 13, color: T.arterial, margin: '10px 0 0' }}>{error}</p>}
       </Card>
 
       <Card style={{ marginTop: 12 }}>
@@ -116,7 +109,7 @@ export default function DonorOnTheWay() {
               background: '#fff',
               padding: 5,
             }}
-            aria-label="Donation verification QR code"
+            aria-label={t('ontheway.qrLabel')}
             data-testid="verify-qr"
             data-ref-code={qrData}
           >
@@ -143,21 +136,21 @@ export default function DonorOnTheWay() {
             }}
             role="alert"
           >
-            <p style={{ fontFamily: body, fontSize: 11, color: T.mut, margin: 0 }}>Ref code unavailable</p>
+            <p style={{ fontFamily: body, fontSize: 11, color: T.mut, margin: 0 }}>{t('ontheway.refUnavailable')}</p>
           </div>
         )}
         <div>
-          <p style={{ fontFamily: display, fontWeight: 700, fontSize: 14.5, margin: 0, color: T.ink }}>Show this at the desk</p>
+          <p style={{ fontFamily: display, fontWeight: 700, fontSize: 14.5, margin: 0, color: T.ink }}>{t('ontheway.showDesk')}</p>
           <p style={{ fontFamily: body, fontSize: 12.5, color: T.mut, margin: '3px 0 0' }}>
-            Staff will scan or type the same ref code shown below.
+            {t('ontheway.staffScan')}
           </p>
           <p
             style={{ fontFamily: display, fontWeight: 800, fontSize: 13, color: T.oxblood, margin: '6px 0 0' }}
             data-testid="verify-ref-text"
           >
-            {qrData || 'Not available'}
+            {qrData || t('ontheway.notAvailable')}
           </p>
-          <p style={{ fontFamily: display, fontWeight: 800, fontSize: 13, color: T.oxblood, margin: '6px 0 0' }}>+100 credits on verification</p>
+          <p style={{ fontFamily: display, fontWeight: 800, fontSize: 13, color: T.oxblood, margin: '6px 0 0' }}>{t('ontheway.creditsOnVerify')}</p>
         </div>
       </Card>
 

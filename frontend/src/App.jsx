@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth.js';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import { T } from './theme.js';
 import { roleHome } from './lib/roleHome.js';
+import { getLang, subscribeLang } from './i18n.js';
 
 /* Auth / public */
 import Landing from './screens/Landing.jsx';
@@ -33,6 +34,8 @@ import ConsoleVerify from './screens/ConsoleVerify.jsx';
 
 /* Admin */
 import AdminDashboard from './screens/AdminDashboard.jsx';
+import NotFound from './screens/NotFound.jsx';
+import ConsoleRequest from './screens/ConsoleRequest.jsx';
 
 const PUBLIC_PATHS = new Set([
   '/',
@@ -49,6 +52,7 @@ const PUBLIC_PATHS = new Set([
 
 function App() {
   const { user, loading } = useAuth();
+  useSyncExternalStore(subscribeLang, getLang); // re-render every screen on language change
   const location = useLocation();
   const isPublic = PUBLIC_PATHS.has(location.pathname);
   const isDarkPublic = location.pathname === '/' || location.pathname === '/login';
@@ -155,7 +159,13 @@ function App() {
             </ProtectedRoute>
           } />
 
-          <Route path="*" element={<Navigate to={user ? roleHome(user) : '/'} replace />} />
+          <Route path="/console/requests/:requestId" element={
+            <ProtectedRoute user={user} role="hospital">
+              <ConsoleRequest />
+            </ProtectedRoute>
+          } />
+
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
     </div>

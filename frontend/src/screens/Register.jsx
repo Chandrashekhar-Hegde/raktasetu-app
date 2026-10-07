@@ -1,14 +1,40 @@
 import React, { useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { User, Phone, Mail, Lock, MapPin, Calendar } from 'lucide-react';
+import { errMsg } from '../api/client.js';
+import { POLICY_VERSION } from '../config.js';
 import { T, GROUPS } from '../theme.js';
 import Btn from '../components/Btn.jsx';
+import LanguageToggle from '../components/LanguageToggle.jsx';
+import LocationPrompt from '../components/LocationPrompt.jsx';
 import { useAuth } from '../hooks/useAuth.js';
 import { roleHome, parseAuthRole } from '../lib/roleHome.js';
 import usePageMeta from '../hooks/usePageMeta.js';
+import { t } from '../i18n.js';
 
 const body = "'Public Sans', 'Segoe UI', system-ui, sans-serif";
 const display = "'Anek Latin', 'Segoe UI', system-ui, sans-serif";
+
+const labelStyle = { fontFamily: body, fontSize: 12, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 };
+const inputStyle = {
+  width: '100%', padding: '14px 14px', borderRadius: 12, border: `1px solid ${T.line}`, fontFamily: body,
+  fontSize: 16, background: T.card, color: T.ink, colorScheme: 'light', caretColor: T.ink, minHeight: 48,
+};
+const iconStyle = { position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' };
+
+/** Label + input pair with a real <label for>, optional leading icon and persistent help text. */
+function Field({ id, label, icon: Icon, help, children }) {
+  return (
+    <div style={{ marginBottom: 12, flex: 1 }}>
+      <label htmlFor={id} style={labelStyle}>{label}</label>
+      <div style={{ position: 'relative' }}>
+        {Icon && <Icon size={16} color={T.mut} style={iconStyle} aria-hidden="true" />}
+        {children}
+      </div>
+      {help && <p id={`${id}-help`} style={{ fontFamily: body, fontSize: 12, color: T.mut, margin: '6px 0 0' }}>{help}</p>}
+    </div>
+  );
+}
 
 export default function Register() {
   const navigate = useNavigate();
@@ -16,20 +42,16 @@ export default function Register() {
   const role = parseAuthRole(searchParams);
   const isHospital = role === 'hospital';
   const { register } = useAuth();
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [bloodGroup, setBloodGroup] = useState('O+');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [dob, setDob] = useState('');
-  const [sex, setSex] = useState('');
-  const [address, setAddress] = useState('');
-  const [licenseNumber, setLicenseNumber] = useState('');
+  const [form, setForm] = useState({
+    name: '', phone: '', email: '', password: '', city: '', state: '', dob: '', sex: '', address: '', licenseNumber: '',
+  });
+  // No default: a pre-selected group is easy to submit by mistake, and a wrong group is a clinical risk.
+  const [bloodGroup, setBloodGroup] = useState('');
+  const [coords, setCoords] = useState(null);
   const [consentGiven, setConsentGiven] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   usePageMeta({
     title: isHospital ? 'Register a Hospital | RaktaSetu' : 'Create a Donor Account | RaktaSetu',
@@ -42,253 +64,140 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!name || !phone || !email || !password || !city || !state || (!isHospital && (!dob || !sex))) {
-      setError('Please fill all required fields');
-      return;
-    }
-    if (isHospital && (!address || !licenseNumber)) {
-      setError('Hospital address and license number are required');
-      return;
-    }
-    if (role === 'donor' && !bloodGroup) {
-      setError('Please select your blood group');
-      return;
-    }
+    if (!isHospital && !bloodGroup) return setError(t('register.errBloodGroup'));
     if (!isHospital) {
-      const today = new Date();
-      const birthDate = new Date(dob);
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const m = today.getMonth() - birthDate.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-      if (age < 18) {
-        setError('You must be at least 18 years old to register');
-        return;
-      }
+      const birth = new Date(form.dob);
+      const adult = new Date();
+      adult.setFullYear(adult.getFullYear() - 18);
+      if (!(birth <= adult)) return setError(t('register.errAge'));
     }
-    if (!consentGiven) {
-      setError('You must consent to processing your personal and health data');
-      return;
-    }
+    if (!consentGiven) return setError(t('register.errConsent'));
     setLoading(true);
     try {
-      const payload = {
-        name, phone, email, password, role, city, state,
-        blood_group: isHospital ? undefined : bloodGroup,
-        date_of_birth: isHospital ? undefined : dob,
-        sex: isHospital ? undefined : sex,
-        hospital_name: isHospital ? name : undefined,
-        address: isHospital ? address : undefined,
-        license_number: isHospital ? licenseNumber : undefined,
+      const result = await register({
+        name: form.name, phone: form.phone, email: form.email, password: form.password,
+        role, city: form.city, state: form.state,
+        ...(coords || {}),
+        ...(isHospital
+          ? { hospital_name: form.name, address: form.address, license_number: form.licenseNumber }
+          : { blood_group: bloodGroup, date_of_birth: form.dob, sex: form.sex }),
         consent_given: true,
-        consent_policy_version: '2026-07-15',
-      };
-      const result = await register(payload);
+        consent_policy_version: POLICY_VERSION,
+      });
       if (result.status === 'pending_approval') navigate('/hospital-pending');
       else navigate(roleHome(result.user));
-    } catch (_err) {
-      setError(_err.response?.data?.error?.message || _err.response?.data?.error || 'Registration failed. Please try again.');
+    } catch (err) {
+      setError(errMsg(err, t('register.failed')));
     } finally {
       setLoading(false);
     }
   };
 
-  const inputStyle = {
-    width: '100%',
-    padding: '14px 14px',
-    borderRadius: 12,
-    border: `1px solid ${T.line}`,
-    fontFamily: body,
-    fontSize: 16,
-    background: T.card,
-    color: T.ink,
-    colorScheme: 'light',
-    caretColor: T.ink,
-    minHeight: 48,
-  };
-
   return (
     <div
       className="safe-top safe-bottom rs-light-shell"
-      style={{
-        minHeight: '100dvh',
-        padding: 'max(24px, env(safe-area-inset-top)) 20px max(40px, env(safe-area-inset-bottom))',
-        background: T.porcelain,
-      }}
+      style={{ minHeight: '100dvh', padding: 'max(24px, env(safe-area-inset-top)) 20px max(40px, env(safe-area-inset-bottom))', background: T.porcelain }}
     >
       <div style={{ maxWidth: 360, margin: '0 auto' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 12,
-          marginBottom: 16,
-          minHeight: 44,
-        }}>
-          <Link to="/" style={{
-            fontFamily: body, fontSize: 13, color: T.mut, textDecoration: 'none',
-            display: 'inline-flex', alignItems: 'center', minHeight: 44,
-          }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16, minHeight: 44 }}>
+          <Link to="/" style={{ fontFamily: body, fontSize: 13, color: T.mut, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 44 }}>
             ← RaktaSetu
           </Link>
-          {!isHospital ? (
-            <Link
-              to="/register?role=hospital"
-              style={{
-                fontFamily: body,
-                fontSize: 12,
-                color: T.faint,
-                textDecoration: 'underline',
-                textUnderlineOffset: 3,
-                display: 'inline-flex',
-                alignItems: 'center',
-                minHeight: 44,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              Hospital registration
-            </Link>
-          ) : (
-            <Link
-              to="/register"
-              style={{
-                fontFamily: body,
-                fontSize: 12,
-                color: T.mut,
-                textDecoration: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                minHeight: 44,
-              }}
-            >
-              Donor registration
-            </Link>
-          )}
+          <LanguageToggle />
         </div>
 
         <h1 style={{ fontFamily: display, fontWeight: 800, fontSize: 22, color: T.ink, margin: '0 0 4px' }}>
-          {isHospital ? 'Register hospital' : 'Create donor account'}
+          {isHospital ? t('register.hospitalTitle') : t('register.donorTitle')}
         </h1>
-        <p style={{ fontFamily: body, fontSize: 13, color: T.mut, margin: '0 0 20px' }}>
-          {isHospital
-            ? 'Join RaktaSetu as a blood bank or hospital'
-            : 'Join the living bridge and respond when nearby patients need you'}
+        <p style={{ fontFamily: body, fontSize: 14, color: T.mut, margin: '0 0 8px' }}>
+          {isHospital ? t('register.hospitalSubtitle') : t('register.donorSubtitle')}
         </p>
+        <Link
+          to={isHospital ? '/register' : '/register?role=hospital'}
+          style={{ fontFamily: body, fontSize: 13, color: T.oxblood, display: 'inline-flex', alignItems: 'center', minHeight: 44, marginBottom: 8 }}
+        >
+          {isHospital ? t('register.switchToDonor') : t('register.switchToHospital')}
+        </Link>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate={false}>
           {error && (
-            <div style={{
-              background: T.arterialSoft, border: '1px solid #F3C9D0', borderRadius: 10,
-              padding: '10px 14px', marginBottom: 14, fontFamily: body, fontSize: 13, color: T.arterial,
-            }} role="alert">
+            <div role="alert" style={{ background: T.arterialSoft, border: '1px solid #F3C9D0', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontFamily: body, fontSize: 14, color: T.arterial }}>
               {error}
             </div>
           )}
 
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontFamily: body, fontSize: 11, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>
-              {isHospital ? 'Hospital / blood bank name' : 'Full name'}
-            </label>
-            <div style={{ position: 'relative' }}>
-              <User size={16} color={T.faint} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-              <input type="text" aria-label={isHospital ? 'Hospital or blood bank name' : 'Full name'} required placeholder={isHospital ? 'Hospital name' : 'Your full name'} value={name} onChange={(e) => setName(e.target.value)} style={{ ...inputStyle, paddingLeft: 40 }} />
-            </div>
-          </div>
+          <Field id="reg-name" label={isHospital ? t('register.hospitalName') : t('register.fullName')} icon={User}>
+            <input id="reg-name" type="text" required autoComplete={isHospital ? 'organization' : 'name'} value={form.name} onChange={set('name')} style={{ ...inputStyle, paddingLeft: 40 }} />
+          </Field>
+          <Field id="reg-phone" label={t('register.phone')} icon={Phone}>
+            <input id="reg-phone" type="tel" required autoComplete="tel" placeholder="+91 98765 43210" value={form.phone} onChange={set('phone')} style={{ ...inputStyle, paddingLeft: 40 }} />
+          </Field>
+          <Field id="reg-email" label={t('register.email')} icon={Mail}>
+            <input id="reg-email" type="email" required autoComplete="email" placeholder="you@example.com" value={form.email} onChange={set('email')} style={{ ...inputStyle, paddingLeft: 40 }} />
+          </Field>
+          <Field id="reg-password" label={t('register.password')} icon={Lock} help={t('register.passwordHelp')}>
+            <input id="reg-password" type="password" required autoComplete="new-password" minLength={12} aria-describedby="reg-password-help" value={form.password} onChange={set('password')} style={{ ...inputStyle, paddingLeft: 40 }} />
+          </Field>
 
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontFamily: body, fontSize: 11, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Phone</label>
-            <div style={{ position: 'relative' }}>
-              <Phone size={16} color={T.faint} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-              <input type="tel" aria-label="Phone" required autoComplete="tel" placeholder="+91 98765 43210" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ ...inputStyle, paddingLeft: 40 }} />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontFamily: body, fontSize: 11, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Email</label>
-            <div style={{ position: 'relative' }}>
-              <Mail size={16} color={T.faint} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-              <input type="email" aria-label="Email" required autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} style={{ ...inputStyle, paddingLeft: 40 }} />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontFamily: body, fontSize: 11, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Password</label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={16} color={T.faint} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-              <input type="password" aria-label="Password" required autoComplete="new-password" minLength={12} placeholder="Min 12 characters with uppercase, lowercase, number, symbol" value={password} onChange={(e) => setPassword(e.target.value)} style={{ ...inputStyle, paddingLeft: 40 }} />
-            </div>
-          </div>
-
-          {!isHospital ? (
+          {isHospital ? (
             <>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontFamily: body, fontSize: 11, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Date of birth</label>
-                <div style={{ position: 'relative' }}>
-                  <Calendar size={16} color={T.faint} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-                  <input type="date" aria-label="Date of birth" required value={dob} onChange={(e) => setDob(e.target.value)} style={{ ...inputStyle, paddingLeft: 40 }} />
-                </div>
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontFamily: body, fontSize: 11, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Sex (for NBTC donation interval)</label>
-                <select aria-label="Sex" required value={sex} onChange={(e) => setSex(e.target.value)} style={inputStyle}>
-                  <option value="" disabled>Select</option>
-                  <option value="male">Male (90-day gap)</option>
-                  <option value="female">Female (120-day gap)</option>
-                </select>
-                <p style={{ fontFamily: body, fontSize: 11, color: T.faint, margin: '6px 0 0' }}>
-                  Used only for India NBTC/NACO whole-blood eligibility intervals.
-                </p>
-              </div>
+              <Field id="reg-license" label={t('register.license')}>
+                <input id="reg-license" type="text" required value={form.licenseNumber} onChange={set('licenseNumber')} style={inputStyle} />
+              </Field>
+              <Field id="reg-address" label={t('register.address')}>
+                <textarea id="reg-address" required value={form.address} onChange={set('address')} style={{ ...inputStyle, minHeight: 88, resize: 'vertical' }} />
+              </Field>
             </>
           ) : (
             <>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontFamily: body, fontSize: 11, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>License number</label>
-                <input type="text" aria-label="License number" required value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} style={inputStyle} />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontFamily: body, fontSize: 11, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Hospital address</label>
-                <textarea aria-label="Hospital address" required value={address} onChange={(e) => setAddress(e.target.value)} style={{ ...inputStyle, minHeight: 88, resize: 'vertical' }} />
-              </div>
+              <Field id="reg-dob" label={t('register.dob')} icon={Calendar}>
+                <input id="reg-dob" type="date" required value={form.dob} onChange={set('dob')} style={{ ...inputStyle, paddingLeft: 40 }} />
+              </Field>
+              <Field id="reg-sex" label={t('register.sex')} help={t('register.sexHelp')}>
+                <select id="reg-sex" required aria-describedby="reg-sex-help" value={form.sex} onChange={set('sex')} style={inputStyle}>
+                  <option value="" disabled>{t('register.select')}</option>
+                  <option value="male">{t('register.male')}</option>
+                  <option value="female">{t('register.female')}</option>
+                </select>
+              </Field>
+              <fieldset style={{ border: 0, padding: 0, margin: '0 0 12px' }}>
+                <legend style={labelStyle}>{t('register.bloodGroup')}</legend>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {GROUPS.map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      aria-pressed={bloodGroup === g}
+                      onClick={() => setBloodGroup(g)}
+                      style={{
+                        fontFamily: display, fontWeight: 800, fontSize: 15, padding: '12px 0', minHeight: 44, borderRadius: 10,
+                        background: bloodGroup === g ? T.oxblood : T.card, color: bloodGroup === g ? '#fff' : T.ink,
+                        border: `1px solid ${bloodGroup === g ? T.oxbloodDark : T.line}`, cursor: 'pointer',
+                      }}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontFamily: body, fontSize: 12, color: T.mut, margin: '6px 0 0' }}>{t('register.bloodGroupHelp')}</p>
+              </fieldset>
             </>
           )}
 
-          {!isHospital && (
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontFamily: body, fontSize: 11, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Blood group</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                {GROUPS.map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setBloodGroup(g)}
-                    style={{
-                      fontFamily: display, fontWeight: 800, fontSize: 15, padding: '12px 0',
-                      minHeight: 44, borderRadius: 10,
-                      background: bloodGroup === g ? T.oxblood : T.card,
-                      color: bloodGroup === g ? '#fff' : T.mut,
-                      border: `1px solid ${bloodGroup === g ? T.oxbloodDark : T.line}`,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Field id="reg-city" label={t('register.city')} icon={MapPin}>
+              <input id="reg-city" type="text" required autoComplete="address-level2" value={form.city} onChange={set('city')} style={{ ...inputStyle, paddingLeft: 40 }} />
+            </Field>
+            <Field id="reg-state" label={t('register.state')}>
+              <input id="reg-state" type="text" required autoComplete="address-level1" value={form.state} onChange={set('state')} style={inputStyle} />
+            </Field>
+          </div>
 
-          <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontFamily: body, fontSize: 11, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>City</label>
-              <div style={{ position: 'relative' }}>
-                <MapPin size={16} color={T.faint} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-                <input type="text" aria-label="City" required autoComplete="address-level2" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} style={{ ...inputStyle, paddingLeft: 40 }} />
-              </div>
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontFamily: body, fontSize: 11, color: T.mut, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>State</label>
-              <input type="text" aria-label="State" required autoComplete="address-level1" placeholder="State" value={state} onChange={(e) => setState(e.target.value)} style={inputStyle} />
-            </div>
+          <div style={{ marginBottom: 14 }}>
+            <p style={{ fontFamily: body, fontSize: 13, color: T.mut, margin: '0 0 8px' }}>
+              {isHospital ? t('location.consoleBody') : t('location.why')}
+            </p>
+            <LocationPrompt labelKey={isHospital ? 'location.useHospital' : 'location.useMine'} onCoords={async (c) => setCoords(c)} />
           </div>
 
           <div style={{ marginBottom: 14, display: 'flex', alignItems: 'flex-start', gap: 10, minHeight: 44 }}>
@@ -297,28 +206,24 @@ export default function Register() {
               id="consent"
               checked={consentGiven}
               onChange={(e) => setConsentGiven(e.target.checked)}
-              style={{ marginTop: 3, accentColor: T.oxblood, width: 18, height: 18, flexShrink: 0 }}
+              style={{ marginTop: 3, accentColor: T.oxblood, width: 20, height: 20, flexShrink: 0 }}
             />
-            <label htmlFor="consent" style={{ fontFamily: body, fontSize: 13, color: T.ink, lineHeight: 1.4 }}>
-              I have read the <Link to="/privacy" style={{ color: T.oxblood }}>Privacy Policy</Link> and
-              agree to the <Link to="/terms" style={{ color: T.oxblood }}>Terms of Service</Link>. I consent
-              to RaktaSetu using my account, blood group, location, and donation activity to provide
-              matching and coordination features.
+            <label htmlFor="consent" style={{ fontFamily: body, fontSize: 13, color: T.ink, lineHeight: 1.45 }}>
+              {t('register.consentPrefix')} <Link to="/privacy" style={{ color: T.oxblood }}>{t('register.privacy')}</Link>{' '}
+              {t('register.consentAnd')} <Link to="/terms" style={{ color: T.oxblood }}>{t('register.terms')}</Link>.{' '}
+              {t('register.consentBody')}
             </label>
           </div>
 
           <Btn kind="primary" full disabled={loading}>
-            {loading ? 'Creating account...' : isHospital ? 'Register hospital' : 'Create donor account'}
+            {loading ? t('register.creating') : isHospital ? t('register.hospitalSubmit') : t('register.donorSubmit')}
           </Btn>
         </form>
 
-        <p style={{ fontFamily: body, fontSize: 13, color: T.mut, textAlign: 'center', marginTop: 20 }}>
-          Already have an account?{' '}
-          <Link
-            to={isHospital ? '/login?role=hospital' : '/login'}
-            style={{ color: T.oxblood, fontWeight: 700, textDecoration: 'none' }}
-          >
-            Sign in
+        <p style={{ fontFamily: body, fontSize: 14, color: T.mut, textAlign: 'center', marginTop: 20 }}>
+          {t('register.haveAccount')}{' '}
+          <Link to={isHospital ? '/login?role=hospital' : '/login'} style={{ color: T.oxblood, fontWeight: 700, textDecoration: 'none' }}>
+            {t('register.signIn')}
           </Link>
         </p>
       </div>

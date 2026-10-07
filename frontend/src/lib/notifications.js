@@ -13,37 +13,6 @@ export function notificationsSupported() {
   return typeof window !== 'undefined' && 'Notification' in window;
 }
 
-export async function showLocalNotification(title, body, options = {}) {
-  if (!notificationsSupported()) {
-    throw new Error('Notifications are not supported in this browser');
-  }
-  let permission = Notification.permission;
-  if (permission === 'default') {
-    permission = await Notification.requestPermission();
-  }
-  if (permission !== 'granted') {
-    throw new Error('Notification permission denied');
-  }
-
-  if ('serviceWorker' in navigator) {
-    const reg = await navigator.serviceWorker.ready.catch(() => null);
-    if (reg?.showNotification) {
-      await reg.showNotification(title, {
-        body,
-        icon: '/drop-icon.svg',
-        badge: '/drop-icon.svg',
-        ...options,
-      });
-      return { via: 'serviceWorker' };
-    }
-  }
-
-  // Fallback when SW not ready
-  // eslint-disable-next-line no-new
-  new Notification(title, { body, icon: '/drop-icon.svg', ...options });
-  return { via: 'Notification' };
-}
-
 export async function enablePushNotifications() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     throw new Error('Push messaging is not supported');
@@ -72,9 +41,4 @@ export async function enablePushNotifications() {
     keys: json.keys,
   });
   return { subscribed: true };
-}
-
-export async function testServerPush(body) {
-  const { data } = await api.post('/push/test', { body });
-  return data;
 }

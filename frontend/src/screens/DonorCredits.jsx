@@ -5,7 +5,7 @@ import Card from '../components/Card.jsx';
 import Btn from '../components/Btn.jsx';
 import Chip from '../components/Chip.jsx';
 import BottomNav from '../components/BottomNav.jsx';
-import api from '../api/client.js';
+import api, { errMsg } from '../api/client.js';
 import { t } from '../i18n.js';
 
 const body = "'Public Sans', 'Segoe UI', system-ui, sans-serif";
@@ -96,7 +96,7 @@ export default function DonorCredits() {
       setNewRelation('spouse');
       setNewBloodGroup('');
     } catch (err) {
-      setError(err.response?.data?.error?.message || t('family.addFailed'));
+      setError(errMsg(err, t('family.addFailed')));
     } finally {
       setBusy(false);
     }
@@ -118,7 +118,7 @@ export default function DonorCredits() {
       setPlainCode(payload.code || '');
       setActiveRedemption(payload.redemption);
     } catch (err) {
-      setError(err.response?.data?.error?.message || t('redeem.failed'));
+      setError(errMsg(err, t('redeem.failed')));
     } finally {
       setBusy(false);
     }
@@ -134,7 +134,7 @@ export default function DonorCredits() {
       setPlainCode('');
       await refresh();
     } catch (err) {
-      setError(err.response?.data?.error?.message || t('redeem.cancelFailed'));
+      setError(errMsg(err, t('redeem.cancelFailed')));
     } finally {
       setBusy(false);
     }

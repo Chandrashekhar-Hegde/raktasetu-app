@@ -12,6 +12,10 @@ test('creating a request notifies only nearby compatible donors, atomically', { 
     const noLocation = await hospitalAuth(app, owner, request);
     assert.equal((await request(app).post('/api/hospital/requests').set(noLocation).send(body).expect(409)).body.error.code,
       'HOSPITAL_LOCATION_MISSING');
+    assert.equal((await request(app).get('/api/hospital/dashboard').set(noLocation).expect(200)).body.data.location_set, false);
+    // The console's "Use this location" button fixes it.
+    await request(app).patch('/api/hospital/location').set(noLocation).send({ latitude: 12.3, longitude: 76.6 }).expect(200);
+    assert.equal((await request(app).get('/api/hospital/dashboard').set(noLocation).expect(200)).body.data.location_set, true);
 
     const at = { lat: 12.30, lng: 76.64 }; // Mysuru: away from other tests' Hubballi donors
     const donor = async (overrides) => {

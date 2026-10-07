@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { CONTACT } from '../config.js';
 import { Link, useNavigate } from 'react-router-dom';
 import PublicShell from '../components/PublicShell.jsx';
-import api from '../api/client.js';
+import api, { errMsg } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 import usePageMeta from '../hooks/usePageMeta.js';
 import { t } from '../i18n.js';
@@ -38,7 +39,7 @@ export default function DataRights() {
       URL.revokeObjectURL(url);
       setStatus(t('dataRights.exportReady'));
     } catch (error) {
-      setStatus(error.response?.data?.error?.message || error.response?.data?.error || t('dataRights.exportFailed'));
+      setStatus(errMsg(error, t('dataRights.exportFailed', { email: CONTACT.privacy })));
     } finally {
       setBusy('');
     }
@@ -56,13 +57,12 @@ export default function DataRights() {
       navigate('/login', { replace: true, state: { accountDeleted: true } });
     } catch (error) {
       const code = error.response?.data?.error?.code;
-      const message = error.response?.data?.error?.message || error.response?.data?.error;
       if (code === 'ACCOUNT_DELETION_BLOCKED') {
-        setStatus(message || t('dataRights.deleteBlocked'));
+        setStatus(errMsg(error, t('dataRights.deleteBlocked')));
       } else if (code === 'RECENT_AUTH_REQUIRED') {
         setStatus(t('dataRights.passwordRequired'));
       } else {
-        setStatus(message || t('dataRights.deleteFailed'));
+        setStatus(errMsg(error, t('dataRights.deleteFailed', { email: CONTACT.privacy })));
       }
       setBusy('');
     }
@@ -196,7 +196,7 @@ export default function DataRights() {
         <section className="policy-section">
           <h2>{t('dataRights.emailTitle')}</h2>
           <ol>
-            <li>{t('dataRights.emailStep1')}</li>
+            <li>{t('dataRights.emailStep1', { email: CONTACT.privacy })}</li>
             <li>{t('dataRights.emailStep2')}</li>
             <li>{t('dataRights.emailStep3')}</li>
           </ol>

@@ -1,4 +1,6 @@
+import { POLICY_VERSION } from '../config.js';
 import { useState } from 'react';
+import { errMsg } from '../api/client.js';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.js';
 import { roleHome } from '../lib/roleHome.js';
@@ -6,7 +8,7 @@ import { roleHome } from '../lib/roleHome.js';
 export default function GoogleOnboarding() {
   const navigate = useNavigate();
   const { completeGoogleOnboarding } = useAuth();
-  const [form, setForm] = useState({ phone: '', blood_group: 'O+', date_of_birth: '', sex: '', city: '', state: 'Karnataka' });
+  const [form, setForm] = useState({ phone: '', blood_group: '', date_of_birth: '', sex: '', city: '', state: '' });
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -24,12 +26,12 @@ export default function GoogleOnboarding() {
         onboarding_token: token,
         ...form,
         consent_given: true,
-        consent_policy_version: '2026-07-15',
+        consent_policy_version: POLICY_VERSION,
       });
       sessionStorage.removeItem('google_onboarding_token');
       navigate(roleHome(user));
     } catch (requestError) {
-      setError(requestError.response?.data?.error?.message || requestError.message || 'Could not create your account');
+      setError(errMsg(requestError, 'Could not create your account'));
     } finally {
       setBusy(false);
     }
@@ -44,7 +46,7 @@ export default function GoogleOnboarding() {
         {error ? <div className="auth-flow__error" role="alert">{error}</div> : null}
         <form onSubmit={submit}>
           <label>Phone<input required autoComplete="tel" value={form.phone} onChange={update('phone')} placeholder="+91 98765 43210" /></label>
-          <label>Blood group<select value={form.blood_group} onChange={update('blood_group')}>{['O-','O+','A-','A+','B-','B+','AB-','AB+'].map((group) => <option key={group}>{group}</option>)}</select></label>
+          <label>Blood group<select required value={form.blood_group} onChange={update('blood_group')}><option value="" disabled>Choose your blood group</option>{['O-','O+','A-','A+','B-','B+','AB-','AB+'].map((group) => <option key={group}>{group}</option>)}</select></label>
           <label>Date of birth<input required type="date" value={form.date_of_birth} onChange={update('date_of_birth')} /></label>
           <label>Sex (NBTC interval)
             <select required value={form.sex} onChange={update('sex')}>

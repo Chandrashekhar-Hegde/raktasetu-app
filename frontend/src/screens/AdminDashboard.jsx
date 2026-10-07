@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Users, Building2, Droplet, Award, BarChart3, ArrowLeft, LogOut, Download } from 'lucide-react';
 import { T } from '../theme.js';
 import Card from '../components/Card.jsx';
-import api from '../api/client.js';
+import api, { errMsg } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { t } from '../i18n.js';
 import { getAccessToken } from '../lib/accessToken.js';
@@ -64,6 +64,8 @@ export default function AdminDashboard() {
   const { logout } = useAuth();
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
+  const [usersCursor, setUsersCursor] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -84,6 +86,7 @@ export default function AdminDashboard() {
       ]);
       setStats(statsRes.data.data?.stats || statsRes.data.stats);
       setUsers(asItems(usersRes.data.data || usersRes.data, 'users'));
+      setUsersCursor(usersRes.data.data?.next_cursor || null);
       setRequests(asItems(requestsRes.data.data || requestsRes.data, 'requests'));
       setError('');
     } catch (_err) {
@@ -96,6 +99,20 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   }, [logout, navigate]);
+
+  // Lists are keyset-paged at 100: without this, pending hospitals past the first page could never be approved.
+  const loadMoreUsers = async () => {
+    setLoadingMore(true);
+    try {
+      const res = await api.get('/admin/users', { params: { limit: 100, cursor: usersCursor } });
+      setUsers((prev) => [...prev, ...asItems(res.data.data, 'users')]);
+      setUsersCursor(res.data.data?.next_cursor || null);
+    } catch (err) {
+      setError(errMsg(err, t('metrics.loadFailed')));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const fetchMetrics = useCallback(async () => {
     setMetricsLoading(true);
@@ -135,7 +152,7 @@ export default function AdminDashboard() {
       await api.post(`/admin/hospitals/${hospitalId}/approval`, { status });
       await fetchData();
     } catch (_err) {
-      setError(_err.response?.data?.error?.message || t('metrics.approvalFailed'));
+      setError(errMsg(_err, t('metrics.approvalFailed')));
     } finally {
       setBusyId('');
     }
@@ -402,6 +419,15 @@ export default function AdminDashboard() {
             </Card>
           ))}
         </div>
+      )}
+
+      {usersCursor && ['pending', 'donors', 'hospitals'].includes(tab) && (
+        <button type="button" onClick={loadMoreUsers} disabled={loadingMore} style={{
+          width: '100%', minHeight: 44, marginTop: 8, borderRadius: 10, cursor: 'pointer',
+          background: 'transparent', color: '#F0EEE9', border: '1px solid #3A1A22', fontFamily: display, fontWeight: 700,
+        }}>
+          {loadingMore ? t('admin.loadingMore') : t('admin.loadMore')}
+        </button>
       )}
 
       {tab === 'requests' && (

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { errMsg } from '../api/client.js';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.js';
 import { roleHome } from '../lib/roleHome.js';
@@ -19,7 +20,7 @@ export default function AccountLink() {
       const user = await linkGoogle({ identifier, password });
       navigate(roleHome(user));
     } catch (requestError) {
-      setError(requestError.response?.data?.error?.message || requestError.message || 'Could not link Google');
+      setError(errMsg(requestError, 'Could not link Google'));
     } finally {
       setBusy(false);
     }

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { T } from '../theme.js';
 import Logo from '../components/Logo.jsx';
 import Chip from '../components/Chip.jsx';
 import Card from '../components/Card.jsx';
 import api from '../api/client.js';
+import LocationPrompt from '../components/LocationPrompt.jsx';
 import { useAuth } from '../hooks/useAuth.js';
 import { t } from '../i18n.js';
 
@@ -43,6 +44,7 @@ export default function Console() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [locationSet, setLocationSet] = useState(true);
 
   useEffect(() => {
     const path = location.pathname;
@@ -65,6 +67,7 @@ export default function Console() {
       ]);
       const payload = response.data || response;
       setRequests(payload.requests || []);
+      setLocationSet(payload.location_set !== false);
       if (metricsRes?.data?.data) setMetrics(metricsRes.data.data);
     } catch (_err) {
       setError(t('metrics.consoleLoadFailed'));
@@ -122,9 +125,18 @@ export default function Console() {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <p style={{ fontFamily: body, fontSize: 12, color: T.consoleMut, margin: 0 }}>Live board · {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-            <Chip tone="green" dark>Bank verified</Chip>
           </div>
 
+          {!locationSet && (
+            <Card dark style={{ marginBottom: 12, borderColor: '#E4506B' }}>
+              <h2 style={{ fontFamily: display, fontWeight: 800, fontSize: 16, margin: 0, color: '#F0EEE9' }}>{t('location.consoleTitle')}</h2>
+              <p style={{ fontFamily: body, fontSize: 13, color: T.consoleMut, margin: '6px 0 12px' }}>{t('location.consoleBody')}</p>
+              <LocationPrompt dark labelKey="location.useHospital" onCoords={async (coords) => {
+                await api.patch('/hospital/location', coords);
+                setLocationSet(true);
+              }} />
+            </Card>
+          )}
           {loading ? (
             <p style={{ fontFamily: body, fontSize: 13, color: T.consoleMut, textAlign: 'center' }}>Loading...</p>
           ) : error ? (
@@ -135,7 +147,8 @@ export default function Console() {
             </Card>
           ) : (
             requests.map((req) => (
-              <Card key={req.id} dark style={{ marginBottom: 10 }}>
+              <Link key={req.id} to={`/console/requests/${req.id}`} aria-label={t('consoleRequest.open', { ref: req.ref_code })} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
+              <Card dark style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <span style={{ fontFamily: display, fontWeight: 800, fontSize: 26, color: '#E4506B' }}>{req.blood_group}</span>
@@ -177,6 +190,7 @@ export default function Console() {
                   ))}
                 </div>
               </Card>
+              </Link>
             ))
           )}
 

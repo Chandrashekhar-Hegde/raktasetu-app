@@ -36,6 +36,9 @@ describe('identity state screens', () => {
     fireEvent.change(screen.getByLabelText('Date of birth'), { target: { value: '1990-01-01' } });
     fireEvent.change(screen.getByLabelText(/Sex \(NBTC interval\)/i), { target: { value: 'male' } });
     fireEvent.change(screen.getByLabelText('City'), { target: { value: 'Hubballi' } });
+    // No defaults any more: blood group and state must be chosen explicitly.
+    fireEvent.change(screen.getByLabelText('Blood group'), { target: { value: 'B+' } });
+    fireEvent.change(screen.getByLabelText('State'), { target: { value: 'Karnataka' } });
     fireEvent.click(screen.getByRole('button', { name: /create donor account/i }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/consent is required/i);
     expect(completeGoogleOnboarding).not.toHaveBeenCalled();

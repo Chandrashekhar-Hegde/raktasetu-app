@@ -6,7 +6,7 @@ export const T = {
   arterialSoft: '#FBEBEE',
   ink: '#17151A',
   mut: '#6F6963',
-  faint: '#9A938C',
+  faint: '#6F6862', // was #9A938C (~3:1); now >=4.5:1 on white for the small text it is used on
   porcelain: '#F8F1EF',
   card: '#FFFFFF',
   line: '#E8D9D6',

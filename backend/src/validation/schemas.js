@@ -123,6 +123,10 @@ export const donorProfileSchema = z.object({
   state: state.optional(),
   ping_radius_km: z.number().int().min(1).max(25).optional(),
 }).strict().refine((value) => Object.keys(value).length > 0, 'No fields to update');
+export const hospitalLocationSchema = z.object({
+  latitude: coordinate(-90, 90),
+  longitude: coordinate(-180, 180),
+}).strict();
 export const onCallSchema = z.object({ is_on_call: z.boolean() }).strict();
 export const donorResponseSchema = z.object({ status: z.enum(['accepted', 'declined']) }).strict();
 export const requestCreateSchema = z.object({

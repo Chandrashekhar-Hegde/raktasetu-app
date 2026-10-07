@@ -1,4 +1,5 @@
 import React from 'react';
+import { CONTACT } from '../config.js';
 import PublicShell from '../components/PublicShell.jsx';
 import usePageMeta from '../hooks/usePageMeta.js';
 
@@ -120,7 +121,7 @@ export default function SecurityReadiness() {
         <Section title="Reporting a security concern">
           <p>
             Send a concise description, affected URL, reproduction steps, and impact to
-            {' '}<a href="mailto:security@raktasetu.org">security@raktasetu.org</a>.
+            {' '}<a href={`mailto:${CONTACT.security}`}>{CONTACT.security}</a>.
             Do not include live personal, medical, password, or token data in the report.
           </p>
           <p>
