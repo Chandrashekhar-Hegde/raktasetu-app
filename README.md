@@ -115,6 +115,7 @@ See the runbook in [docs/operational-readiness.md](./docs/operational-readiness.
 
 | Doc | Purpose |
 |-----|---------|
+| [CLAUDE.md](./CLAUDE.md) | Commands, invariants and definition of done (for people and AI agents) |
 | [docs/README.md](./docs/README.md) | Documentation index |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | PR / secrets / checks |
 | [docs/ops/ci-cd.md](./docs/ops/ci-cd.md) | CI/CD and branch protection |

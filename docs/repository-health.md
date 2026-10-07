@@ -2,7 +2,7 @@
 
 > **Status:** Active operational reference
 >
-> **Last reviewed:** 2026-10-04 (Asia/Kolkata); previous review 2026-08-11
+> **Last reviewed:** 2026-10-07 (Asia/Kolkata), after the launch-readiness sweep; previous reviews 2026-10-04, 2026-08-11
 >
 > **Review scope:** Git/GitHub state, release metadata, documentation, comments, and tracked debt. No runtime behavior.
 
@@ -12,27 +12,28 @@
 |-------|--------|
 | Canonical repository | `Chandrashekhar-Hegde/raktasetu-app` |
 | Default/current branch | `main` |
-| Reviewed commit | `341484a24f65efc871ac5fa3774db2888f9d1c47` |
-| Remote comparison | `0` ahead / `0` behind `origin/main` after `git fetch origin --prune`; worktree clean |
-| Application version | `2.0.13` in frontend, backend, health response, and changelog; Neon-quota handling and the cron socket-loss fix sit under `Unreleased` |
-| Root package version | `1.0.0`; private workspace metadata, not the shipped application version |
-| Latest relevant CI | Backend CI, Frontend CI, and Migrate and Deploy green on `341484a2` and `7968d19d` (2026-10-04) |
-| CI failures since last review | Migrate and Deploy on `73306091` (2026-08-26) failed at "Apply database migrations" with Neon compute quota exceeded (`53000`); later runs are green |
-| Release tags | `v2.0.13` → `5687e810` (unchanged); no new release tagged |
-| Open pull requests | None |
-| Production check | Railway `/api/health` and `/api/health/ready` returned HTTP 200, version `2.0.13` on 2026-10-04; `raktasetu`, `raktasetu-escalation`, and `raktasetu-retention` deployments SUCCESS |
-| Custom domain check | **`raktasetu.in` returns NXDOMAIN on 2026-10-04** (no A/NS records via 1.1.1.1 and 8.8.8.8); WHOIS registry expiry `2026-08-12` (GoDaddy). Renew/recover before any cutover |
-| Open tracked debt | [Issue #1: read-only transactions for pure GET paths](https://github.com/Chandrashekhar-Hegde/raktasetu-app/issues/1) |
+| Reviewed commit | `main` after PR #9 (this snapshot) |
+| Branch protection | `main` requires **lint-and-test**, **build**, **full-loop**; no force push or deletion; admin bypass kept for hotfixes |
+| Deploy ordering | Railway "Wait for CI" on for all 3 services: deploys follow green checks and the migration |
+| Application version | `2.0.13`; sweep fixes (PRs #3–#8) sit under `Unreleased` |
+| Runtime | Node 22 (`.nvmrc`; Railway build shows `nodejs_22`); Express 5; react-router 7 |
+| Tests | Backend 111 tests, **0 skipped** (CI fails on any skip; real Postgres incl. RLS); frontend 11 unit; Playwright `full-loop` + `fresh-donor` on every PR |
+| Dependencies | `npm audit --omit=dev`: 0 vulnerabilities (backend and frontend) |
+| CI failures since last review | Railway build of `38bde171` (PR #6 merge) failed: Nixpacks' default nixpkgs has no `nodejs_22`; fixed in PR #7 (pinned `nixpkgsArchive`). Production stayed on the previous healthy deploy |
+| Release tags | `v2.0.13` → `5687e810`; next release should tag the sweep (see release-and-tagging.md) |
+| Production check | `/api/health` and `/api/health/ready` 200 on 2026-10-07; all 3 services SUCCESS; escalation ticks clean |
+| Cron config | `raktasetu-escalation` → `/railway.escalation.toml`, `raktasetu-retention` → `/railway.retention.toml` (restart policy NEVER, no API healthcheck) |
+| Custom domain check | `raktasetu.in` NXDOMAIN (expired 2026-08-12): issue #9 |
+| Open tracked work | Milestone **Public launch** (#9–#14: domain, contact inboxes, email delivery, Neon plan, data controller, Android) and backlog #1, #15–#28 labelled `p2`/`p3` |
+| Agent guidance | `CLAUDE.md` (+ `AGENTS.md` symlink, Cursor rule points to it) |
 
-The local `feat/user-ready-today` branch points at `e190efb0`, which is already an ancestor of `main`. It has no matching remote branch. Keep or delete it as a local cleanup choice; it is not unmerged work.
-
-Remote `cursor/neon-quota-ready-ed36` is fully merged into `main` (PR #2) and can be deleted. Remote `gh-pages` last changed 2026-07-08 (`ff4ff049`, v1.0.3) and is not part of the current deploy path.
+Merged remote branch `cursor/neon-quota-ready-ed36` and local `feat/user-ready-today` were deleted. Remote `gh-pages` (2026-07-08, v1.0.3, retired hosting) is kept for history; delete it when no longer wanted.
 
 ## Documentation status tags
 
 | Tag | Meaning | Documents |
 |-----|---------|-----------|
-| **Active** | Maintained as current operating truth | `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, this file, `docs/operational-readiness.md`, `docs/ops/*`, `docs/security/*` |
+| **Active** | Maintained as current operating truth | `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, this file, `docs/operational-readiness.md`, `docs/ops/*`, `docs/security/*` |
 | **Reference** | Technical snapshot that must be read with later migrations or implementation history | `backend/db/schema.sql`, `docs/superpowers/specs/*`, `docs/superpowers/plans/*` |
 | **Archived** | Historical evidence; not current operating guidance | `STRESS_TEST_REPORT.md`, `red-team-input-fuzzing-report.md`, `plan.md`, `DEPLOYMENT_PLAN.md` |
 
