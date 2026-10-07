@@ -6,6 +6,8 @@ const externalBase = process.env.E2E_BASE_URL;
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
+  // Full-stack specs share one database and fixture hospital: a broadcast in one reaches the other's donor.
+  workers: e2eFull ? 1 : undefined,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: 'list',
@@ -13,14 +15,16 @@ export default defineConfig({
   use: {
     baseURL: externalBase || (e2eFull ? 'http://127.0.0.1:5173' : 'http://127.0.0.1:4173'),
     trace: 'on-first-retry',
+    // A stuck click should fail at that step, not silently consume the whole test timeout.
+    actionTimeout: 20_000,
   },
   projects: e2eFull
     ? [
-        { name: 'full-loop', use: { ...devices['Desktop Chrome'] }, testMatch: /full-loop\.spec\.js/ },
+        { name: 'full-loop', use: { ...devices['Desktop Chrome'] }, testMatch: /(full-loop|fresh-donor)\.spec\.js/ },
       ]
     : [
-        { name: 'mobile', use: { ...devices['iPhone 13'] }, testIgnore: /full-loop\.spec\.js/ },
-        { name: 'desktop', use: { ...devices['Desktop Chrome'] }, testIgnore: /full-loop\.spec\.js/ },
+        { name: 'mobile', use: { ...devices['iPhone 13'] }, testIgnore: /(full-loop|fresh-donor)\.spec\.js/ },
+        { name: 'desktop', use: { ...devices['Desktop Chrome'] }, testIgnore: /(full-loop|fresh-donor)\.spec\.js/ },
       ],
   webServer: externalBase
     ? undefined

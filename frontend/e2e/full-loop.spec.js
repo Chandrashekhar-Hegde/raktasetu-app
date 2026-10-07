@@ -36,7 +36,8 @@ async function openDonorAlert(donor) {
   const navigated = await donor.waitForURL(/\/alert\//, { timeout: 4000 }).then(() => true).catch(() => false);
   if (navigated) return;
 
-  await donor.getByRole('link', { name: /^Requests$/i }).click(); // bottom nav items are links
+  // Bottom nav items are links, translated (the donor switched to Kannada earlier).
+  await donor.getByRole('link', { name: /^(Requests|ವಿನಂತಿಗಳು)$/i }).click();
   await expect(donor).toHaveURL(/\/requests/);
   const requestLink = donor.getByRole('link').filter({ hasText: /B\+/ }).first();
   await expect(requestLink).toBeVisible({ timeout: 15000 });
@@ -113,7 +114,7 @@ test('KLE demo full loop: request → accept → verify → credits (+ optional 
 
     // --- 4. Donor credits +100; hospital board 1/2 collected ---
     // Prefer in-app nav (memory access token); full reload relies on refresh cookie.
-    await donor.getByRole('button', { name: /^Credits$/i }).click();
+    await donor.getByRole('link', { name: /^(Credits|ಕ್ರೆಡಿಟ್‌ಗಳು)$/i }).click();
     await expect(donor).toHaveURL(/\/credits/);
     await expect(donor.getByTestId('credits-balance')).toHaveText(/^100$/, { timeout: 15000 });
     await expect(donor.getByText('+100').first()).toBeVisible();
@@ -123,7 +124,7 @@ test('KLE demo full loop: request → accept → verify → credits (+ optional 
     await expect(hospital.getByText(/1\s*\/\s*2/)).toBeVisible({ timeout: 20000 });
 
     // --- 5. Optional redemption (feature-gated) ---
-    await donor.getByRole('button', { name: /^Credits$/i }).click();
+    await donor.getByRole('link', { name: /^(Credits|ಕ್ರೆಡಿಟ್‌ಗಳು)$/i }).click();
     await expect(donor).toHaveURL(/\/credits/);
     const redeemSelf = donor.getByRole('button', { name: /^(Self|ಸ್ವಯಂ)$/i });
     const redeemAction = donor.getByTestId('redeem-submit').getByRole('button');
@@ -148,7 +149,7 @@ test('KLE demo full loop: request → accept → verify → credits (+ optional 
         await rscInput.press('Enter');
         await expect(hospital.getByText(/credits redeemed|replacement unit waived/i)).toBeVisible({ timeout: 15000 });
 
-        await donor.getByRole('button', { name: /^Credits$/i }).click();
+        await donor.getByRole('link', { name: /^(Credits|ಕ್ರೆಡಿಟ್‌ಗಳು)$/i }).click();
         await expect(donor.getByTestId('credits-balance')).toHaveText(/^0$/, { timeout: 15000 });
         redemptionRan = true;
       }

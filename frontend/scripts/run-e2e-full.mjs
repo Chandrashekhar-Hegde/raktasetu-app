@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Prep local/CI test DB and run the KLE demo full-loop Playwright spec.
+ * Prep local/CI test DB and run the full-loop + fresh-donor Playwright specs.
  * Refuses remote/production database hosts. Never points at Neon production.
  */
 import { spawnSync } from 'node:child_process';
@@ -96,7 +96,7 @@ try {
 run('npm', ['run', 'db:test:migrate'], { cwd: backend, env });
 run('npm', ['run', 'db:test:fixtures'], { cwd: backend, env });
 
-run('npx', ['playwright', 'test', 'e2e/full-loop.spec.js', '--project=full-loop'], {
+run('npx', ['playwright', 'test', '--project=full-loop'], {
   cwd: frontend,
   env,
 });

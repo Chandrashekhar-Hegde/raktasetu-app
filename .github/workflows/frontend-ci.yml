@@ -9,19 +9,15 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
-      - 'backend/scripts/seed-fixtures.js'
-      - 'backend/src/routes/hospital.js'
-      - 'backend/src/routes/donor.js'
-      - 'backend/db/**'
+      # Any backend change can break the full loop (auth, services, middleware, jobs), not just two route files.
+      - 'backend/**'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - 'frontend/**'
-      - 'backend/scripts/seed-fixtures.js'
-      - 'backend/src/routes/hospital.js'
-      - 'backend/src/routes/donor.js'
-      - 'backend/db/**'
+      # Any backend change can break the full loop (auth, services, middleware, jobs), not just two route files.
+      - 'backend/**'
       - '.github/workflows/frontend-ci.yml'
 
 jobs:
