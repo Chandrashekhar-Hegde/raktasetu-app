@@ -2,6 +2,8 @@ providers = []
 
 [phases.setup]
 nixPkgs = ["nodejs_22"]  # keep in step with .nvmrc
+# Nixpacks' default nixpkgs snapshot predates nodejs_22; pin nixos-24.11 (Node 22.16.0).
+nixpkgsArchive = "50ab793786d9de88ee30ec4e4c24fb4236fc2674"
 
 [phases.install]
 cmds = ["echo 'deps install deferred to build'"]
