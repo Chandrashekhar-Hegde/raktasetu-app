@@ -12,9 +12,7 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - 'package.json'
-      - 'start.sh'
       - 'railway.toml'
-      - 'railway.json'
       - 'nixpacks.toml'
       - '.github/workflows/railway-deploy.yml'
   workflow_dispatch:
@@ -29,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
           cache-dependency-path: ./backend/package-lock.json
 

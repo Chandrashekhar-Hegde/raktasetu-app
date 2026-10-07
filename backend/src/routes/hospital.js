@@ -1,9 +1,10 @@
 import express from 'express';
+import { GIVERS, RARE_GROUPS, haversineKm } from '../utils/bloodCompatibility.js';
 import { query } from '../db.js';
 import { withAuthorizationContext } from '../db/authorizedTransaction.js';
 import { respondIfDatabaseDown } from '../db/computeQuota.js';
 import { authenticate, requireActiveAccount, requireApprovedHospital, requireRole } from '../middleware/auth.js';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
 import crypto from 'crypto';
 import { completeDonation } from '../services/donationService.js';
 import { completeRedemption } from '../services/redemptionService.js';
@@ -27,33 +28,6 @@ import { logAudit } from '../utils/compliance.js';
 
 const router = express.Router();
 
-/**
- * Blood compatibility matrix: which blood groups can DONATE to a given recipient group.
- * Keep identical to donor.js and frontend/src/theme.js (guarded by compatibility-matrix.test.js).
- */
-export const GIVERS = {
-  'O-':  ['O-'],
-  'O+':  ['O-', 'O+'],
-  'A-':  ['O-', 'A-'],
-  'A+':  ['O-', 'O+', 'A-', 'A+'],
-  'B-':  ['O-', 'B-'],
-  'B+':  ['O-', 'O+', 'B-', 'B+'],
-  'AB-': ['O-', 'A-', 'B-', 'AB-'],
-  'AB+': ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+']
-};
-
-const RARE = ['O-', 'AB-'];
-
-/**
- * Haversine distance in km between two lat/lng points
- */
-function haversine(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
 
 /**
  * Generate a reference code for donation verification
@@ -161,7 +135,7 @@ router.post('/requests', validate(requestCreateSchema), async (req, res) => {
   try {
     // zod (requestCreateSchema) already bounds every field.
     const { blood_group, units_needed, urgency, radius_km, notes, needed_by } = req.body;
-    const isRare = RARE.includes(blood_group);
+    const isRare = RARE_GROUPS.includes(blood_group);
     const effectiveRadius = isRare ? 25 : radius_km;
 
     // Request + its notifications commit together: a retry after a failure can't double-ping donors.
@@ -196,7 +170,7 @@ router.post('/requests', validate(requestCreateSchema), async (req, res) => {
           [GIVERS[blood_group]],
         );
         const donorIds = donorsResult.rows
-          .filter((d) => haversine(
+          .filter((d) => haversineKm(
             parseFloat(hospital.latitude), parseFloat(hospital.longitude),
             parseFloat(d.latitude), parseFloat(d.longitude),
           ) <= effectiveRadius)
@@ -456,7 +430,7 @@ router.get('/donors', validate(donorSearchQuerySchema, 'query'), async (req, res
 
     const donors = donorsResult.rows
       .map((d) => {
-        const dist = haversine(
+        const dist = haversineKm(
           parseFloat(hospital.latitude), parseFloat(hospital.longitude),
           parseFloat(d.latitude), parseFloat(d.longitude),
         );

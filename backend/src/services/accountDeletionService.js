@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
 import { logAudit } from '../utils/compliance.js';
 
 export const ACCOUNT_DELETION_GRACE_DAYS = 30;

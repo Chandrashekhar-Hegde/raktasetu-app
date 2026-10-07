@@ -1,7 +1,7 @@
 providers = []
 
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["nodejs_22"]  # keep in step with .nvmrc
 
 [phases.install]
 cmds = ["echo 'deps install deferred to build'"]
@@ -9,8 +9,8 @@ cmds = ["echo 'deps install deferred to build'"]
 [phases.build]
 cmds = [
   "cd backend && npm ci --omit=dev",
-  "cd frontend && npm install --include=dev && npx vite build"
+  "cd frontend && npm ci --include=dev && npx vite build"
 ]
 
-[start]
-cmds = ["cd backend && npm start"]
+# No [start]: each Railway service sets its own start command (API vs the two crons).
+# A start fallback here would make a cron with a blank start command boot the API and never exit.

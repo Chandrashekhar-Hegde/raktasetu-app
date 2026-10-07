@@ -1,36 +1,8 @@
 ---
-description: RaktaSetu project conventions — stack, i18n, backend, DB/RLS, privacy, auth, blood domain, tests, secrets, CHANGELOG
+description: RaktaSetu project rules — read CLAUDE.md
 alwaysApply: true
 ---
 
-# RaktaSetu conventions (match existing code exactly — do not introduce new frameworks)
-
-- Stack: React 18 + Vite (JS, not TS), inline styles using tokens from frontend/src/theme.js (T),
-  shared components in frontend/src/components (Card, Btn, Chip, BottomNav), screens in
-  frontend/src/screens. No Tailwind, no CSS-in-JS libraries, no new UI kits.
-- All user-facing strings go through frontend/src/i18n.js t() with keys added to BOTH
-  frontend/src/i18n/en.json and kn.json. Never hardcode English prose in JSX.
-- Backend: Express routers in backend/src/routes, zod schemas in backend/src/validation/schemas.js
-  applied via the existing validate() middleware. Multi-step writes go through service modules
-  (mirror backend/src/services/donationService.js): withAuthorizationContext, row locks with
-  FOR UPDATE, replay guards, logAudit() from utils/compliance.js, notifications insert, and
-  realtime events via backend/src/realtime/publisher.js.
-- Database: every schema change is a new file backend/db/migrations/YYYY-MM-DD-name.sql,
-  idempotent (IF NOT EXISTS / OR REPLACE), plus the same change reflected in backend/db/schema.sql.
-  Respect RLS: the app runs SET ROLE raktasetu_rls; cross-user reads/writes need policies or
-  SECURITY DEFINER helpers with minimal columns, following
-  backend/db/migrations/2026-07-18-hospital-donor-visibility.sql.
-- Donor privacy invariants: hospitals never receive donor coordinates, phone, or email through
-  any new endpoint — distances are computed server-side; identity is revealed only per existing
-  arrival/verification patterns.
-- Auth: web refresh tokens live ONLY in the rs_refresh httpOnly cookie; access tokens in memory
-  via frontend/src/lib/accessToken.js; native platform differences go through
-  frontend/src/lib/platform.js. Never touch localStorage for web auth.
-- Blood domain: compatibility comes from the GIVERS matrix (guarded by
-  backend/tests/compatibility-matrix.test.js — if you touch any copy, keep all three identical).
-  Eligibility follows NBTC: male 90 days, female 120 days, unknown 120.
-- Tests: backend uses node --test + supertest in backend/tests; frontend uses vitest in
-  frontend/src/test and Playwright in frontend/e2e. Every new endpoint gets an access-control
-  test (wrong role, wrong tenant, replay) in the style of backend/tests/access.matrix.test.js.
-- Never commit secrets, .env files, or real credentials. Test scripts take env vars.
-- Update CHANGELOG.md with every user-visible change.
+Before changing anything, read and follow `CLAUDE.md` at the repository root. It is the single
+source of truth for commands, invariants (deploy, RLS, privacy, blood compatibility, auth, i18n)
+and the definition of done. Do not duplicate its rules here; edit CLAUDE.md instead.

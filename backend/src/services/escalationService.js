@@ -1,4 +1,5 @@
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
+import { GIVERS, haversineKm } from '../utils/bloodCompatibility.js';
 import { bloodRequestPushPayload, sendPushToUser } from './pushDelivery.js';
 import { publishToUser, publishToHospital } from '../realtime/publisher.js';
 
@@ -22,29 +23,6 @@ export const ESCALATION_RADIUS_KM = Object.freeze({
 /** Open requests older than this (or past needed_by) are expired. */
 export const REQUEST_MAX_AGE_HOURS = 24;
 
-/** Identical to hospital.js / donor.js / theme.js GIVERS (compatibility-matrix.test.js). */
-const GIVERS = {
-  'O-': ['O-'],
-  'O+': ['O-', 'O+'],
-  'A-': ['O-', 'A-'],
-  'A+': ['O-', 'O+', 'A-', 'A+'],
-  'B-': ['O-', 'B-'],
-  'B+': ['O-', 'O+', 'B-', 'B+'],
-  'AB-': ['O-', 'A-', 'B-', 'AB-'],
-  'AB+': ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'],
-};
-
-export function haversineKm(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 /**
  * Minutes to wait since created_at / last_escalated_at before the next step.
@@ -376,3 +354,5 @@ export async function runEscalationPass(client, { now = new Date() } = {}) {
 
   return summary;
 }
+
+export { haversineKm };
